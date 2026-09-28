@@ -179,7 +179,7 @@
             <div id="influencer-section" class="bg-white rounded-2xl shadow-lg p-6 hidden">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0 z"/></svg>
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-800">Program Afiliasi Influencer</h2>
@@ -245,7 +245,7 @@
         let productsData = [];
         let originalSettings = {};
         let originalProducts = [];
-        let influencerData = null; // Menyimpan data influencer jika akun ini adalah influencer
+        let influencerData = null;
         
         function showSection(section) {
             document.getElementById("login-section").classList.add("hidden");
@@ -296,7 +296,6 @@
             return match ? match[1] : null;
         }
 
-        // --- Fungsi Kompresi Otomatis Gambar Sebelum Upload ---
         function compressImage(file, maxWidth = 800, quality = 0.75) {
             return new Promise((resolve) => {
                 if (!file.type.startsWith('image/')) {
@@ -334,7 +333,6 @@
             });
         }
         
-        // --- Fungsi Pembersih Otomatis File Lama di Storage ---
         async function cleanupOldStorageFiles(clientSlug, typePrefix) {
             try {
                 const { data: files, error } = await sbClient.storage.from(SB_BUCKET).list('', {
@@ -457,7 +455,6 @@
             return data || [];
         }
 
-        // --- Cek Status Influencer & Statistik Real-Time ---
         async function checkInfluencerStatus(slug) {
             const infSection = document.getElementById("influencer-section");
             try {
@@ -521,7 +518,6 @@
                 productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
             }
 
-            // Jalankan pengecekan status influencer
             await checkInfluencerStatus(slug);
         }
         
@@ -597,8 +593,11 @@
             showSection("login-section");
         }
         
+        // --- PERBAIKAN TOMBOL PREVIEW (Mengarahkan langsung ke path pendek) ---
         function previewPage() {
-            window.open("index.html?slug=" + currentSlug, "_blank");
+            // Mengarahkan ke format path pendek, misal: /healthyjus
+            const cleanOrigin = window.location.origin;
+            window.open(`${cleanOrigin}/${currentSlug}`, "_blank");
         }
         
         async function handleSave() {
@@ -657,7 +656,6 @@
                 const { error: settingsError } = await sbClient.from("settings").upsert(settingsPayload, { onConflict: "client_slug" });
                 if (settingsError) throw settingsError;
 
-                // Jika akun ini terdata sebagai influencer, simpan perubahan kode vouchernya
                 if (influencerData) {
                     const newVoucherCode = document.getElementById("influencer_voucher_code").value.trim().toUpperCase();
                     if (newVoucherCode) {

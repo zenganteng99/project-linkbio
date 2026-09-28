@@ -76,9 +76,14 @@
             const params = new URLSearchParams(location.search);
             if (params.get("slug")) return params.get("slug");
             if (params.get("p")) return params.get("p");
+            
+            // Otomatis membaca path URL (misal: /healthyjus -> healthyjus)
             const pathSegments = window.location.pathname.split("/").filter(Boolean);
-            if (pathSegments.length > 0 && !pathSegments[0].includes('.html')) {
-                return pathSegments[0];
+            if (pathSegments.length > 0) {
+                const lastSegment = pathSegments[pathSegments.length - 1];
+                if (!lastSegment.includes('.html') && lastSegment !== 'landingpage' && lastSegment !== 'admin') {
+                    return lastSegment;
+                }
             }
             return "default"; 
         }
