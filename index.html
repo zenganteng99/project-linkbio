@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio Link - Affiliate</title>
+    <!-- Preconnect ke Supabase & Google Fonts untuk memangkas latensi -->
+    <link rel="preconnect" href="https://aonbjbcytrpjaxuhyucq.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Tailwind CSS dengan async loading trick / preloaded styles -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .bg-gradient-purple { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
+        .bg-gradient-ocean { background: linear-gradient(135deg, #0f172a, #1e3a8a, #3b82f6); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
+        .bg-gradient-emerald { background: linear-gradient(135deg, #022c22, #065f46, #10b981); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
+        .bg-gradient-sunset { background: linear-gradient(135deg, #431407, #7c2d12, #ea580c); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
+        .bg-gradient-obsidian { background: linear-gradient(135deg, #09090b, #18181b, #27272a); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
+        .bg-pastel-rose { background: linear-gradient(135deg, #fff1f2, #ffe4e6, #fecdd3); }
+        .bg-pastel-champagne { background: linear-gradient(135deg, #fefce8, #fef9c3, #fde047); }
+        .bg-pastel-sage { background: linear-gradient(135deg, #f0fdf4, #dcfce7, #bbf7d0); }
+        .bg-pastel-lavender { background: linear-gradient(135deg, #faf5ff, #f3e8ff, #e9d5ff); }
+        .bg-pastel-skyblue { background: linear-gradient(135deg, #f0f9ff, #e0f2fe, #bae6fd); }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .glass-card { background: rgba(255, 255, 255, 0.07); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        .product-glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); min-height: 96px; }
+        .product-glass:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 20px 40px -15px rgba(236, 72, 153, 0.4); }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .btn-shine { position: relative; overflow: hidden; }
+        .btn-shine::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(60deg, transparent, rgba(255,255,255,0.3), transparent); transform: rotate(45deg) translateX(-100%); transition: transform 0.7s ease-in-out; }
+        .btn-shine:hover::after { transform: rotate(45deg) translateX(100%); }
+        .avatar-glow { box-shadow: 0 0 25px rgba(236, 72, 153, 0.6), 0 0 50px rgba(139, 92, 246, 0.4); animation: pulseGlow 3s infinite alternate; }
+        @keyframes pulseGlow { 0% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.5); } 100% { box-shadow: 0 0 35px rgba(139, 92, 246, 0.8), 0 0 15px rgba(255, 255, 255, 0.6); } }
+    </style>
+</head>
+<body class="bg-gradient-purple min-h-screen text-gray-800 antialiased selection:bg-pink-500 selection:text-white">
+    <div id="content" class="min-h-screen pb-16">
+        <div id="hero-bg" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
+            <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#0f0c29]"></div>
+        </div>
+        
+        <div class="relative -mt-36 px-4 max-w-md mx-auto animate-fade-in">
+            <div class="text-center mb-8 text-white">
+                <div class="relative mx-auto w-32 h-32 mb-4 p-1 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 avatar-glow">
+                    <div id="profile-image" class="w-full h-full rounded-full border-2 border-white/80 bg-gray-900 bg-cover bg-center flex items-center justify-center text-3xl overflow-hidden">
+                        👤
+                    </div>
+                </div>
+                <h1 id="profile-name" class="text-2xl font-extrabold tracking-tight drop-shadow-md"></h1>
+                <p id="hero-title" class="text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90"></p>
+                <p id="hero-subtitle" class="text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light"></p>
+            </div>
+            
+            <div id="products-container" class="space-y-4 min-h-[400px]"></div>
+
+            <div id="social-container" class="mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap"></div>
+        </div>
+        
+        <div id="footer-credit" class="text-center mt-12 text-xs tracking-wider uppercase font-medium text-white/40">
+            <p>Powered by <span id="footer-brand" class="font-semibold text-white/70">Bio Link Affiliate</span></p>
+        </div>
+    </div>
+
+    <script>
+        const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
+        
+        const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+        
+        function getSlug() { 
+            const params = new URLSearchParams(location.search);
+            if (params.get("slug")) return params.get("slug");
+            if (params.get("p")) return params.get("p");
+            const pathSegments = window.location.pathname.split("/").filter(Boolean);
+            if (pathSegments.length > 0 && !pathSegments[0].includes('.html')) {
+                return pathSegments[0];
+            }
+            return "default"; 
+        }
+        
+        function fmt(p) { 
+            if (!p) return ""; 
+            const n = parseInt(p.toString().replace(/[^0-9]/g, "")); 
+            return isNaN(n) ? p : "Rp " + n.toLocaleString("id-ID"); 
+        }
+        
+        async function fetchSettings(slug) {
+            const { data, error } = await sbClient.from("settings").select("client_slug, profile_name, hero_title, hero_subtitle, background_url, profile_image_url, theme_style, instagram_link, instagram_active, tiktok_link, tiktok_active, whatsapp_link, whatsapp_active").eq("client_slug", slug).limit(1);
+            if (error) { console.error("Settings error:", error); return slug !== "default" ? await fetchSettings("default") : null; }
+            if (data && data.length > 0) return data[0];
+            return slug !== "default" ? await fetchSettings("default") : null;
+        }
+        
+        async function fetchProducts(slug) {
+            const { data, error } = await sbClient.from("products").select("id, title, price, image_url, affiliate_link, sort_order, is_active").eq("client_slug", slug).eq("is_active", true).order("sort_order", { ascending: true });
+            if (error) { console.error("Products error:", error); return []; }
+            return data || [];
+        }
+        
+        function renderHero(s) {
+            if (s) {
+                if (s.profile_name) document.getElementById("profile-name").textContent = s.profile_name;
+                if (s.hero_title) document.getElementById("hero-title").textContent = s.hero_title;
+                if (s.hero_subtitle) document.getElementById("hero-subtitle").textContent = s.hero_subtitle;
+                if (s.background_url) {
+                    document.getElementById("hero-bg").style.backgroundImage = `url('${s.background_url}')`;
+                }
+                if (s.profile_image_url) {
+                    const pImg = document.getElementById("profile-image");
+                    pImg.style.backgroundImage = `url('${s.profile_image_url}')`;
+                    pImg.style.backgroundSize = "cover";
+                    pImg.style.backgroundPosition = "center";
+                    pImg.innerHTML = "";
+                }
+                const bodyEl = document.body;
+                const profileInfoEl = document.querySelector('.text-center.mb-8');
+                const footerCredit = document.getElementById("footer-credit");
+                const footerBrand = document.getElementById("footer-brand");
+                const socialContainer = document.getElementById("social-container");
+                
+                bodyEl.className = "min-h-screen antialiased selection:bg-pink-500 selection:text-white ";
+                const theme = s.theme_style || 'gradient-purple';
+                bodyEl.classList.add('bg-' + theme);
+
+                if (theme.startsWith('pastel-')) {
+                    profileInfoEl.classList.remove('text-white');
+                    profileInfoEl.classList.add('text-gray-900');
+                    document.getElementById("hero-title").className = "text-sm font-bold text-pink-600 mt-1 tracking-wide uppercase";
+                    document.getElementById("hero-subtitle").className = "text-sm text-gray-700 mt-2 px-6 leading-relaxed font-normal";
+                    socialContainer.className = "mt-10 pt-6 border-t border-gray-900/10 flex justify-center gap-4 flex-wrap";
+                    footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-gray-600";
+                    footerBrand.className = "font-semibold text-gray-900";
+                } else {
+                    profileInfoEl.classList.remove('text-gray-900');
+                    profileInfoEl.classList.add('text-white');
+                    document.getElementById("hero-title").className = "text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90";
+                    document.getElementById("hero-subtitle").className = "text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light";
+                    socialContainer.className = "mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap";
+                    footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-white/40";
+                    footerBrand.className = "font-semibold text-white/70";
+                }
+                renderSocialLinks(s, theme);
+            }
+        }
+
+        function renderSocialLinks(s, theme) {
+            const container = document.getElementById("social-container");
+            if (!container) return;
+            const isPastel = theme && theme.startsWith('pastel-');
+            const btnClass = isPastel
+                ? "w-12 h-12 rounded-full bg-gray-900/10 hover:bg-gray-900/20 border border-gray-900/20 flex items-center justify-center text-gray-900 shadow-md transition-all duration-300 hover:scale-110"
+                : "w-12 h-12 rounded-full glass-card hover:bg-white/20 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_20px_rgba(236,72,153,0.6)]";
+            let html = '';
+            if (s.instagram_active !== false && s.instagram_link) {
+                html += `<a href="${s.instagram_link}" target="_blank" rel="noopener noreferrer" class="${btnClass}" title="Instagram"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>`;
+            }
+            if (s.tiktok_active !== false && s.tiktok_link) {
+                html += `<a href="${s.tiktok_link}" target="_blank" rel="noopener noreferrer" class="${btnClass}" title="TikTok"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg></a>`;
+            }
+            if (s.whatsapp_active !== false && s.whatsapp_link) {
+                html += `<a href="${s.whatsapp_link}" target="_blank" rel="noopener noreferrer" class="${btnClass}" title="WhatsApp"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg></a>`;
+            }
+            container.innerHTML = html;
+            container.classList.toggle('hidden', html === '');
+        }
+        
+        function renderProducts(ps) {
+            const c = document.getElementById("products-container");
+            if (!ps || !ps.length) { 
+                c.innerHTML = '<p class="text-center text-gray-500 text-sm font-medium">Belum ada produk aktif.</p>'; 
+                return; 
+            }
+            c.innerHTML = ps.map((p, i) => {
+                const badge = i < 3 ? '<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #' + (i + 1) + '</div>' : '';
+                const imgHtml = p.image_url 
+                    ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">📦</div>`
+                    : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
+
+                return `<div class="product-glass rounded-2xl p-3.5 shadow-xl relative overflow-hidden group">
+                    <a href="${p.affiliate_link || '#'}" target="_blank" class="block">
+                        <div class="flex gap-4 items-center">
+                            <div class="relative flex-shrink-0 w-16 h-16">${imgHtml}${badge}</div>
+                            <div class="flex-1 min-w-0 pr-1">
+                                <h3 class="font-bold text-gray-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-pink-600 transition-colors">${p.title || ''}</h3>
+                                <p class="text-pink-600 font-extrabold text-sm sm:text-base mt-0.5">${fmt(p.price)}</p>
+                                <div class="mt-2.5 inline-flex items-center gap-1.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-pink-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md btn-shine transition-all">
+                                    <span>Beli Sekarang</span>
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>`;
+            }).join("");
+        }
+        
+        async function init() {
+            const slug = getSlug();
+            document.title = "Bio Link - " + slug;
+            const cacheKey = `bio_cache_${slug}`;
+            const cachedData = sessionStorage.getItem(cacheKey);
+            
+            if (cachedData) {
+                try {
+                    const { settings, products } = JSON.parse(cachedData);
+                    renderHero(settings);
+                    renderProducts(products);
+                    backgroundSync(slug, cacheKey);
+                    return;
+                } catch (e) {
+                    sessionStorage.removeItem(cacheKey);
+                }
+            }
+            await loadAndRender(slug, cacheKey);
+        }
+
+        async function loadAndRender(slug, cacheKey) {
+            const [settings, products] = await Promise.all([fetchSettings(slug), fetchProducts(slug)]);
+            try { sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products })); } catch (e) {}
+            renderHero(settings);
+            renderProducts(products);
+        }
+
+        async function backgroundSync(slug, cacheKey) {
+            try {
+                const [settings, products] = await Promise.all([fetchSettings(slug), fetchProducts(slug)]);
+                sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products }));
+            } catch (e) {}
+        }
+        
+        document.addEventListener("DOMContentLoaded", init);
+    </script>
+</body>
+</html>

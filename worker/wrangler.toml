@@ -1,0 +1,30 @@
+name = "customlink-webhook"
+main = "worker.js"
+compatibility_date = "2026-09-26"
+workers_dev = true
+account_id = "5b88f222d36927af58324572423be844"
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# VARIABEL NON-RAHASIA (aman commit)
+# ---------------------------------------------------------------------------
+[vars]
+MERCHANT_ID = "216620090026052421673"
+CLIENT_ID = "2026092618040865582354"
+# DANA: "sandbox" -> api.sandbox.dana.id, "production" -> api.saas.dana.id
+DANA_ENV = "sandbox"
+
+# ---------------------------------------------------------------------------
+# VARIABEL RAHASIA — JANGAN ditaruh di file ini. Set dari terminal:
+#   wrangler secret put DANA_PRIVATE_KEY           (wajib: RSA private key PEM PKCS#8 untuk X-SIGNATURE)
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY  (wajib: untuk auto-aktivasi klien di webhook)
+#   wrangler secret put DANA_ORIGIN                (opsional: default https://customlink.pages.dev)
+#   (nanti: DANA_PUBLIC_KEY untuk verifikasi webhook)
+# CLIENT_SECRET lama sudah TIDAK dipakai (auth SNAP memakai X-SIGNATURE, bukan X-Client-Secret).
+#
+# PENTING: `wrangler deploy` menghapus var yang tidak ada di file konfigurasi.
+# Kalau rahasia sudah di-set lewat `secret put`, deploy memakai --keep-vars
+# supaya tidak terhapus.
+# ---------------------------------------------------------------------------
