@@ -32,7 +32,10 @@
     <!-- Google Fonts Plus Jakarta Sans -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- FontAwesome & AOS Async Load agar tidak memblokir render -->
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+    <!-- FontAwesome & AOS Async Load -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css" media="print" onload="this.media='all'">
 
@@ -71,19 +74,6 @@
         .animate-float { animation: float 5s ease-in-out infinite; }
         @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         .animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
-        /* ---- Form Pendaftaran & Pembayaran (Integrasi Cloudflare Worker) ---- */
-        .reg-card { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 20px 50px -25px rgba(139, 92, 246, 0.45); }
-        .reg-card h2 { font-size: 20px; font-weight: 800; color: #ffffff; text-align: center; margin: 0 0 6px; }
-        .reg-subtitle { font-size: 12px; color: #9ca3af; text-align: center; margin: 0 0 20px; line-height: 1.5; }
-        .reg-field { margin-bottom: 16px; }
-        .reg-field label { display: block; font-size: 12px; font-weight: 600; color: #d1d5db; margin-bottom: 6px; }
-        .reg-field input, .reg-field select { width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 14px; font-family: inherit; color: #ffffff; background-color: #060913; border: 1px solid #374151; border-radius: 8px; outline: none; transition: border-color 0.2s ease; }
-        .reg-field input::placeholder { color: #6b7280; }
-        .reg-field input:focus, .reg-field select:focus { border-color: #0070f3; }
-        .reg-submit { width: 100%; padding: 14px 18px; font-size: 15px; font-family: inherit; font-weight: 700; color: #ffffff; background-color: #0070f3; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease, transform 0.15s ease; }
-        .reg-submit:hover:not(:disabled) { background-color: #0059c1; transform: translateY(-1px); }
-        .reg-submit:disabled { background-color: #4b5563; cursor: not-allowed; }
-        .reg-note { font-size: 11px; color: #6b7280; text-align: center; margin: 14px 0 0; line-height: 1.6; }
     </style>
 </head>
 <body class="bg-obsidian-900 min-h-screen selection:bg-purple-500 selection:text-white">
@@ -95,15 +85,12 @@
     </header>
 
     <main>
-        <!-- HERO SECTION: HOOK -> MOCKUP HP -> STORYTELLING -->
+        <!-- HERO SECTION -->
         <section class="relative min-h-[92vh] flex flex-col items-center justify-center px-4 pt-10 pb-20 hero-glow overflow-hidden">
-            <!-- Background Ambient Orbs -->
             <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[140px] pointer-events-none animate-pulse-glow" aria-hidden="true"></div>
             <div class="absolute bottom-5 right-5 w-[450px] h-[450px] bg-pink-600/15 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
 
             <div class="max-w-4xl mx-auto text-center relative z-10 space-y-8">
-                
-                <!-- 1. Badge & Hook Utama Paling Atas -->
                 <div data-aos="fade-down" data-aos-duration="800">
                     <div class="inline-flex items-center gap-2 bg-purple-950/90 border border-purple-500/40 rounded-full px-4 py-1.5 mb-4 text-xs md:text-sm text-purple-300 shadow-xl">
                         <i class="fa-solid fa-crown text-amber-400" aria-hidden="true"></i> Platform Bio Link Katalog #1 di Indonesia
@@ -114,22 +101,17 @@
                     </h1>
                 </div>
 
-                <!-- 2. Image Mockup HP Tepat di Bawah Hook -->
                 <div class="flex justify-center my-6" data-aos="zoom-in" data-aos-duration="900">
                     <div class="w-[290px] sm:w-[330px] h-[590px] sm:h-[640px] bg-obsidian-800 rounded-[48px] p-3 border-4 border-purple-500/50 glow-neon relative overflow-hidden flex flex-col animate-float shadow-2xl">
-                        <!-- Phone Speaker Notch -->
                         <div class="w-32 h-4 bg-obsidian-900 rounded-full mx-auto mb-3 z-20 flex items-center justify-center flex-shrink-0">
                             <div class="w-12 h-1 bg-gray-700 rounded-full"></div>
                         </div>
-                        
-                        <!-- Area Gambar Screenshot Anda dari folder images -->
                         <div class="flex-1 overflow-y-auto rounded-[32px] bg-black scrollbar-none">
                             <img src="images/hero.jpg" alt="Custom Bio Link Preview" width="330" height="640" class="w-full h-auto object-cover object-top" fetchpriority="high">
                         </div>
                     </div>
                 </div>
 
-                <!-- 3. Text Storytelling / Penjelasan di Bawah Image Mockup -->
                 <div class="max-w-2xl mx-auto space-y-6" data-aos="fade-up" data-aos-duration="900">
                     <p class="text-base sm:text-lg text-gray-300 leading-relaxed font-light">
                         Jangan biarkan calon pembeli kabur karena link teks yang kaku dan membosankan. Hadirkan etalase produk bergambar resolusi tinggi, tombol aksi instan, dan nikmati profit maksimal tanpa biaya langganan.
@@ -153,7 +135,6 @@
                         <span>Dipercaya oleh <strong class="text-white font-semibold">3,400+ Kreator & Affiliate Marketer</strong></span>
                     </div>
                 </div>
-
             </div>
         </section>
 
@@ -166,37 +147,20 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <!-- Pain Point 1 -->
                     <div class="glass-card p-8 rounded-3xl border border-red-500/20 group hover:border-red-500/40 transition-all" data-aos="fade-up" data-aos-delay="100">
-                        <div class="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-400 text-xl mb-6">
-                            <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
-                        </div>
+                        <div class="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-400 text-xl mb-6"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                         <h3 class="text-xl font-bold mb-3 text-white">Jebakan Langganan Bulanan</h3>
-                        <p class="text-gray-400 text-sm leading-relaxed">
-                            Capek tiap bulan dipotong biaya langganan aplikasi luar negeri cuma buat naruh beberapa link? Profit bisnis Anda habis terkuras untuk biaya operasional aplikasi pasaran!
-                        </p>
+                        <p class="text-gray-400 text-sm leading-relaxed">Capek tiap bulan dipotong biaya langganan aplikasi luar negeri cuma buat naruh beberapa link? Profit bisnis Anda habis terkuras untuk biaya operasional aplikasi pasaran!</p>
                     </div>
-
-                    <!-- Pain Point 2 -->
                     <div class="glass-card p-8 rounded-3xl border border-amber-500/20 group hover:border-amber-500/40 transition-all" data-aos="fade-up" data-aos-delay="200">
-                        <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-400 text-xl mb-6">
-                            <i class="fa-solid fa-store-slash" aria-hidden="true"></i>
-                        </div>
+                        <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-400 text-xl mb-6"><i class="fa-solid fa-store-slash"></i></div>
                         <h3 class="text-xl font-bold mb-3 text-white">Toko Terlihat Murahan</h3>
-                        <p class="text-gray-400 text-sm leading-relaxed">
-                            Calon pembeli mengklik bio TikTok/IG Anda, tapi disambut halaman teks polos tanpa gambar produk. Mereka mengira ini link abal-abal dan langsung menutup tab.
-                        </p>
+                        <p class="text-gray-400 text-sm leading-relaxed">Calon pembeli mengklik bio TikTok/IG Anda, tapi disambut halaman teks polos tanpa gambar produk. Mereka mengira ini link abal-abal dan langsung menutup tab.</p>
                     </div>
-
-                    <!-- Pain Point 3 -->
                     <div class="glass-card p-8 rounded-3xl border border-purple-500/20 group hover:border-purple-500/40 transition-all" data-aos="fade-up" data-aos-delay="300">
-                        <div class="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400 text-xl mb-6">
-                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                        </div>
+                        <div class="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400 text-xl mb-6"><i class="fa-solid fa-lock"></i></div>
                         <h3 class="text-xl font-bold mb-3 text-white">Fitur Selalu Dibatasi</h3>
-                        <p class="text-gray-400 text-sm leading-relaxed">
-                            Mau pasang foto produk, kustomisasi background mewah, atau atur posisi sosmed sesuka hati, selalu mentok di batasan fitur berbayar yang harganya selangit.
-                        </p>
+                        <p class="text-gray-400 text-sm leading-relaxed">Mau pasang foto produk, kustomisasi background mewah, atau atur posisi sosmed sesuka hati, selalu mentok di batasan fitur berbayar yang harganya selangit.</p>
                     </div>
                 </div>
             </div>
@@ -211,30 +175,23 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                    <!-- Feature 1 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="100">
-                        <div class="text-pink-500 text-3xl mb-4"><i class="fa-solid fa-images" aria-hidden="true"></i></div>
+                        <div class="text-pink-500 text-3xl mb-4"><i class="fa-solid fa-images"></i></div>
                         <h3 class="font-bold text-lg mb-2 text-white">Rich Product Cards</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Etalase produk dengan gambar resolusi tinggi, format harga Rupiah, dan lencana TOP #1 untuk memicu psikologi beli.</p>
                     </div>
-
-                    <!-- Feature 2 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="200">
-                        <div class="text-purple-400 text-3xl mb-4"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+                        <div class="text-purple-400 text-3xl mb-4"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
                         <h3 class="font-bold text-lg mb-2 text-white">Full Custom Background</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Bebas ganti latar belakang, foto profil glow, dan tema warna futuristik atau pastel sesuai identitas brand Anda.</p>
                     </div>
-
-                    <!-- Feature 3 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="300">
-                        <div class="text-amber-400 text-3xl mb-4"><i class="fa-solid fa-arrow-down-long" aria-hidden="true"></i></div>
+                        <div class="text-amber-400 text-3xl mb-4"><i class="fa-solid fa-arrow-down-long"></i></div>
                         <h3 class="font-bold text-lg mb-2 text-white">Sosmed di Paling Bawah</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Tombol IG, TikTok, dan WhatsApp diletakkan strategis di bagian bawah setelah produk agar pengunjung fokus belanja dulu.</p>
                     </div>
-
-                    <!-- Feature 4 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="400">
-                        <div class="text-emerald-400 text-3xl mb-4"><i class="fa-solid fa-bolt" aria-hidden="true"></i></div>
+                        <div class="text-emerald-400 text-3xl mb-4"><i class="fa-solid fa-bolt"></i></div>
                         <h3 class="font-bold text-lg mb-2 text-white">Akses Otomatis Instan</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Sistem auto-active instan setelah pembayaran terkonfirmasi. Siap digunakan detik itu juga tanpa setup teknis yang rumit.</p>
                     </div>
@@ -251,10 +208,9 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <!-- Testimonial 1 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 flex flex-col justify-between" data-aos="fade-up" data-aos-delay="100">
                         <div>
-                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i></div>
+                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
                             <p class="text-gray-300 text-sm italic mb-6">"Sumpah, tampilan tokonya kelihatan kayak brand jutaan rupiah! Padahal cuma pakai HP. Bye-bye deh langganan Linktree yang mahal!"</p>
                         </div>
                         <div class="flex items-center gap-3 pt-4 border-t border-gray-800">
@@ -265,11 +221,9 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Testimonial 2 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 flex flex-col justify-between" data-aos="fade-up" data-aos-delay="200">
                         <div>
-                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i></div>
+                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
                             <p class="text-gray-300 text-sm italic mb-6">"Admin panelnya gampang banget dipakai. Tambah 30 produk afiliasi Shopee cuma butuh waktu 5 menit. Praktis parah dan konversi naik drastis!"</p>
                         </div>
                         <div class="flex items-center gap-3 pt-4 border-t border-gray-800">
@@ -280,11 +234,9 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Testimonial 3 -->
                     <div class="glass-card p-8 rounded-3xl border border-gray-800 flex flex-col justify-between" data-aos="fade-up" data-aos-delay="300">
                         <div>
-                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i><i class="fa-solid fa-star" aria-hidden="true"></i></div>
+                            <div class="flex text-amber-400 text-sm mb-4"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
                             <p class="text-gray-300 text-sm italic mb-6">"Posisi sosmed di paling bawah setelah produk bener-bener jenius. Followers fokus beli produk dulu baru mampir ke IG. Profit toko langsung melonjak!"</p>
                         </div>
                         <div class="flex items-center gap-3 pt-4 border-t border-gray-800">
@@ -309,9 +261,8 @@
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-                    
                     <!-- TIER 1: STARTER -->
-                    <div class="glass-card rounded-3xl p-8 border border-gray-700/80 flex flex-col justify-between hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="100">
+                    <div class="glass-card rounded-3xl p-8 border border-gray-700/80 flex flex-col justify-between hover:border-purple-500/50 transition-all">
                         <div>
                             <div class="flex justify-between items-center mb-4">
                                 <span class="text-purple-400 font-bold text-xs bg-purple-950 px-3 py-1 rounded-full border border-purple-500/20">STARTER</span>
@@ -319,32 +270,27 @@
                             </div>
                             <h3 class="text-2xl font-bold mb-2 text-white">Starter Package</h3>
                             <p class="text-gray-400 text-xs mb-6">Cocok untuk pemula yang ingin menampilkan produk bergambar rapi di bio.</p>
-                            
-                            <!-- Visual Pricing with Strikethrough -->
                             <div class="space-y-1 mb-8 bg-obsidian-900/60 p-5 rounded-2xl border border-gray-800 text-center">
                                 <div class="text-sm text-gray-400 line-through font-semibold">Rp 500.000</div>
                                 <div class="text-3xl font-black text-purple-400">Rp 285.000</div>
                             </div>
-
                             <ul class="space-y-3 text-sm text-gray-300 mb-8">
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Etalase 10 Produk Bergambar</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> 100% Mobile Responsive HP</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Integrasi Tombol WhatsApp, IG, TikTok</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Halaman Admin Panel PIN</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Etalase 10 Produk Bergambar</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> 100% Mobile Responsive HP</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Integrasi Tombol WhatsApp, IG, TikTok</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Halaman Admin Panel PIN</li>
                             </ul>
                         </div>
-
                         <button onclick="openCheckoutModal('Starter Package', 285000)" class="w-full bg-obsidian-700 hover:bg-purple-600 hover:text-white text-gray-200 font-bold py-3.5 rounded-xl transition-all shadow-lg">
                             Pilih Paket Starter
                         </button>
                     </div>
 
                     <!-- TIER 2: PRO (BEST SELLER) -->
-                    <div class="bg-gradient-to-b from-purple-950/70 via-obsidian-800 to-obsidian-900 rounded-3xl p-8 border-2 border-purple-500 flex flex-col justify-between relative glow-neon transform lg:-translate-y-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="bg-gradient-to-b from-purple-950/70 via-obsidian-800 to-obsidian-900 rounded-3xl p-8 border-2 border-purple-500 flex flex-col justify-between relative glow-neon transform lg:-translate-y-4">
                         <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-extrabold text-xs uppercase px-4 py-1.5 rounded-full shadow-md tracking-wider">
                             ⭐ PALING LARIS & DIREKOMENDASIKAN
                         </div>
-                        
                         <div>
                             <div class="flex justify-between items-center mb-4 mt-2">
                                 <span class="text-pink-400 font-bold text-xs bg-pink-950 px-3 py-1 rounded-full border border-pink-500/30">PRO</span>
@@ -352,28 +298,24 @@
                             </div>
                             <h3 class="text-2xl font-bold mb-2 text-white">Pro Package</h3>
                             <p class="text-gray-300 text-xs mb-6">Pilihan terbaik untuk kreator & pebisnis dengan variasi produk luas.</p>
-                            
-                            <!-- Visual Pricing with Strikethrough -->
                             <div class="space-y-1 mb-8 bg-obsidian-900/80 p-5 rounded-2xl border border-purple-500/40 text-center">
                                 <div class="text-sm text-gray-400 line-through font-semibold">Rp 750.000</div>
                                 <div class="text-4xl font-black text-pink-400">Rp 428.000</div>
                             </div>
-
                             <ul class="space-y-3 text-sm text-gray-200 mb-8">
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400" aria-hidden="true"></i> Etalase 30 Produk Bergambar Mewah</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400" aria-hidden="true"></i> Akses Otomatis Instan (Auto-Active)</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400" aria-hidden="true"></i> Posisi Sosmed di Paling Bawah</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400" aria-hidden="true"></i> Admin Panel PIN Super Mudah</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400"></i> Etalase 30 Produk Bergambar Mewah</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400"></i> Akses Otomatis Instan (Auto-Active)</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400"></i> Posisi Sosmed di Paling Bawah</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-pink-400"></i> Admin Panel PIN Super Mudah</li>
                             </ul>
                         </div>
-
                         <button onclick="openCheckoutModal('Pro Package', 428000)" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black py-4 rounded-xl transition-all shadow-xl glow-neon btn-shine">
                             AMBIL PAKET PRO SEKARANG 🚀
                         </button>
                     </div>
 
                     <!-- TIER 3: ULTIMATE -->
-                    <div class="glass-card rounded-3xl p-8 border border-gray-700/80 flex flex-col justify-between hover:border-purple-500/50 transition-all" data-aos="fade-up" data-aos-delay="300">
+                    <div class="glass-card rounded-3xl p-8 border border-gray-700/80 flex flex-col justify-between hover:border-purple-500/50 transition-all">
                         <div>
                             <div class="flex justify-between items-center mb-4">
                                 <span class="text-amber-400 font-bold text-xs bg-amber-950 px-3 py-1 rounded-full border border-amber-500/20">ULTIMATE</span>
@@ -381,26 +323,21 @@
                             </div>
                             <h3 class="text-2xl font-bold mb-2 text-white">Ultimate Package</h3>
                             <p class="text-gray-400 text-xs mb-6">Kapasitas penuh untuk agensi atau brand dengan katalog produk masif.</p>
-                            
-                            <!-- Visual Pricing with Strikethrough -->
                             <div class="space-y-1 mb-8 bg-obsidian-900/60 p-5 rounded-2xl border border-gray-800 text-center">
                                 <div class="text-sm text-gray-400 line-through font-semibold">Rp 1.200.000</div>
                                 <div class="text-3xl font-black text-amber-400">Rp 713.000</div>
                             </div>
-
                             <ul class="space-y-3 text-sm text-gray-300 mb-8">
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Etalase 50 Produk Bergambar</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Akses Otomatis Instan (Auto-Active)</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Layout & Tema Eksklusif Tanpa Batas</li>
-                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Prioritas Update Fitur Terbaru</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Etalase 50 Produk Bergambar</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Akses Otomatis Instan (Auto-Active)</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Layout & Tema Eksklusif Tanpa Batas</li>
+                                <li class="flex items-center gap-2"><i class="fa-solid fa-check text-green-400"></i> Prioritas Update Fitur Terbaru</li>
                             </ul>
                         </div>
-
                         <button onclick="openCheckoutModal('Ultimate Package', 713000)" class="w-full bg-obsidian-700 hover:bg-purple-600 hover:text-white text-gray-200 font-bold py-3.5 rounded-xl transition-all shadow-lg">
                             Pilih Paket Ultimate
                         </button>
                     </div>
-
                 </div>
             </div>
         </section>
@@ -444,36 +381,35 @@
         </div>
     </footer>
 
-    <!-- CHECKOUT MODAL WITH SECRET VOUCHER INPUT -->
+    <!-- CHECKOUT MODAL WITH VOUCHER & ENDORSE LOGIC -->
     <div id="checkoutModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
         <div class="bg-obsidian-800 border border-purple-500/50 rounded-3xl max-w-lg w-full p-6 md:p-8 relative shadow-2xl transform scale-95 transition-transform duration-300" id="modalContent">
-            <!-- Close Button -->
             <button onclick="closeCheckoutModal()" class="absolute top-5 right-5 text-gray-400 hover:text-white text-xl">
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <i class="fa-solid fa-xmark"></i>
             </button>
 
             <div class="text-center mb-6">
                 <span class="bg-purple-500/10 text-purple-400 text-xs font-bold px-3 py-1 rounded-full uppercase border border-purple-500/20">Formulir Pesanan Aman</span>
                 <h3 class="font-bold text-2xl mt-2 text-white" id="modalTierTitle">Pro Package</h3>
-                <p class="text-xs text-gray-400 mt-1">Lengkapi data Anda dan masukkan kode voucher rahasia jika memilikinya.</p>
+                <p class="text-xs text-gray-400 mt-1">Lengkapi data Anda dan masukkan kode voucher jika memilikinya.</p>
             </div>
 
             <form onsubmit="processFinalCheckout(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1" for="modalBuyerName">Nama Lengkap</label>
+                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Nama Lengkap</label>
                     <input type="text" id="modalBuyerName" required placeholder="Contoh: Rian Pratama" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1" for="modalBuyerPhone">Nomor WhatsApp Aktif</label>
+                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
                     <input type="tel" id="modalBuyerPhone" required placeholder="Contoh: 081234567890" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
                 </div>
 
-                <!-- Secret Coupon Input Section -->
+                <!-- Voucher Input Section -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1" for="couponInput">Kode Voucher Rahasia (Opsional)</label>
+                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Kode Voucher / Endorse (Opsional)</label>
                     <div class="flex gap-2">
-                        <input type="text" id="couponInput" placeholder="Masukkan kode dari YouTuber/Kreator" class="flex-1 bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-amber-400 font-bold uppercase focus:outline-none focus:border-purple-500">
+                        <input type="text" id="couponInput" placeholder="Masukkan kode voucher" class="flex-1 bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-amber-400 font-bold uppercase focus:outline-none focus:border-purple-500">
                         <button type="button" onclick="applyCoupon()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-3 rounded-xl text-xs transition">
                             Terapkan
                         </button>
@@ -488,7 +424,7 @@
                         <span id="summaryBasePrice">Rp 0</span>
                     </div>
                     <div id="discountRow" class="flex justify-between text-xs text-amber-400 font-semibold hidden">
-                        <span>Diskon Voucher Rahasia (30%):</span>
+                        <span id="discountLabel">Diskon Voucher:</span>
                         <span id="summaryDiscount">- Rp 0</span>
                     </div>
                     <div class="pt-2 border-t border-gray-800 flex justify-between items-center">
@@ -504,27 +440,71 @@
         </div>
     </div>
 
+    <!-- MODAL FORM PENDAFTARAN INFLUENCER -->
+    <div id="influencerModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-obsidian-800 border border-purple-500/50 rounded-3xl max-w-lg w-full p-6 md:p-8 relative shadow-2xl text-white max-h-[90vh] overflow-y-auto">
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 bg-pink-500/20 text-pink-400 rounded-2xl mx-auto mb-3 flex items-center justify-center text-2xl">✨</div>
+                <h3 class="text-xl font-extrabold">Aktivasi Akun Influencer</h3>
+                <p class="text-xs text-gray-400 mt-1">Voucher Endorse Anda valid! Silakan lengkapi data di bawah untuk mengaktifkan panel afiliasi dan rekening pencairan komisi Anda.</p>
+            </div>
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Client Slug (Nama Unik Toko/Admin)</label>
+                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <p class="text-[10px] text-gray-500 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Kode Voucher Publik Anda</label>
+                    <input type="text" id="inf_voucher" placeholder="contoh: TASYA30" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm uppercase font-bold text-pink-400 focus:outline-none focus:border-purple-500">
+                    <p class="text-[10px] text-gray-500 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
+                    <input type="text" id="inf_whatsapp" placeholder="08xxxxxxxxxx" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nama Bank / E-Wallet</label>
+                    <input type="text" id="inf_bank_name" placeholder="BCA / DANA / Mandiri" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nomor Rekening</label>
+                    <input type="text" id="inf_bank_account" placeholder="1234567890" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nama Pemilik Rekening</label>
+                    <input type="text" id="inf_bank_holder" placeholder="Sesuai buku tabungan" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <button onclick="submitInfluencerData()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white py-4 rounded-xl font-bold text-sm shadow-xl transition-all mt-2">Simpan & Aktifkan Panel Admin 🚀</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script>
-        AOS.init({
-            once: true,
-            offset: 80,
-            duration: 800
-        });
+        AOS.init({ once: true, offset: 80, duration: 800 });
+
+        const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
+        const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
 
         let currentBasePrice = 0;
-        let isCouponApplied = false;
+        let appliedDiscountPercent = 0; // 0, 30, atau 100
+        let isEndorseSuccess = false;
+        let activeEndorseCode = "";
 
         function openCheckoutModal(tierName, basePrice) {
             currentBasePrice = basePrice;
-            isCouponApplied = false;
+            appliedDiscountPercent = 0;
+            isEndorseSuccess = false;
+            activeEndorseCode = "";
+
             document.getElementById('modalTierTitle').innerText = tierName;
             document.getElementById('modalBuyerName').value = '';
             document.getElementById('modalBuyerPhone').value = '';
             document.getElementById('couponInput').value = '';
             document.getElementById('couponFeedback').innerText = '';
-            document.getElementById('couponFeedback').className = 'text-[11px] mt-1 text-gray-400';
             document.getElementById('discountRow').classList.add('hidden');
             
             updatePriceDisplay();
@@ -541,34 +521,98 @@
             const modal = document.getElementById('checkoutModal');
             modal.classList.add('opacity-0');
             document.getElementById('modalContent').classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
         }
 
-        function applyCoupon() {
-            const code = document.getElementById('couponInput').value.trim();
+        // --- VALIDASI VOUCHER SESUAI ATURAN ---
+        async function applyCoupon() {
+            const code = document.getElementById('couponInput').value.trim().toLowerCase();
             const feedback = document.getElementById('couponFeedback');
             
             if (code === '') {
-                feedback.innerText = 'Masukkan kode voucher rahasia terlebih dahulu.';
+                appliedDiscountPercent = 0;
+                feedback.innerText = 'Masukkan kode voucher terlebih dahulu.';
                 feedback.className = 'text-[11px] mt-1 text-red-400';
+                document.getElementById('discountRow').classList.add('hidden');
+                updatePriceDisplay();
                 return;
             }
 
-            isCouponApplied = true;
-            feedback.innerHTML = '<i class="fa-solid fa-check text-green-400" aria-hidden="true"></i> Voucher Berhasil Digunakan! Diskon 30% diterapkan.';
-            feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
-            document.getElementById('discountRow').classList.remove('hidden');
-            updatePriceDisplay();
+            feedback.innerText = 'Mengecek voucher...';
+            feedback.className = 'text-[11px] mt-1 text-yellow-400';
+
+            try {
+                // 1. Cek apakah ini Voucher Endorse 100% di tabel endorse_vouchers
+                const { data: endorseData, error: endorseErr } = await sbClient
+                    .from('endorse_vouchers')
+                    .select('*')
+                    .ilike('endorse_code', code)
+                    .single();
+
+                if (endorseData) {
+                    if (endorseData.is_used) {
+                        appliedDiscountPercent = 0;
+                        feedback.innerText = '❌ Voucher endorse ini sudah pernah digunakan!';
+                        feedback.className = 'text-[11px] mt-1 text-red-400';
+                        document.getElementById('discountRow').classList.add('hidden');
+                        updatePriceDisplay();
+                        return;
+                    }
+                    // Voucher Endorse Valid -> Diskon 100%
+                    appliedDiscountPercent = 100;
+                    isEndorseSuccess = true;
+                    activeEndorseCode = endorseData.endorse_code;
+                    feedback.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Voucher Endorse Berhasil! Diskon 100% (GRATIS).';
+                    feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
+                    document.getElementById('discountLabel').innerText = 'Diskon Endorse (100%):';
+                    document.getElementById('discountRow').classList.remove('hidden');
+                    updatePriceDisplay();
+                    return;
+                }
+
+                // 2. Cek apakah ini Voucher Afiliasi Influencer Publik di tabel influencers (Diskon 30%)
+                const { data: infData, error: infErr } = await sbClient
+                    .from('influencers')
+                    .select('*')
+                    .ilike('voucher_code', code)
+                    .single();
+
+                if (infData) {
+                    appliedDiscountPercent = infData.discount_percent || 30;
+                    isEndorseSuccess = false;
+                    feedback.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Voucher Berhasil! Diskon ${appliedDiscountPercent}% diterapkan.`;
+                    feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
+                    document.getElementById('discountLabel').innerText = `Diskon Voucher (${appliedDiscountPercent}%):`;
+                    document.getElementById('discountRow').classList.remove('hidden');
+                    updatePriceDisplay();
+                    return;
+                }
+
+                // 3. Jika kode diisi asal / salah -> Diskon 0%
+                appliedDiscountPercent = 0;
+                isEndorseSuccess = false;
+                feedback.innerText = '❌ Kode voucher salah atau tidak ditemukan. Diskon 0%.';
+                feedback.className = 'text-[11px] mt-1 text-red-400 font-semibold';
+                document.getElementById('discountRow').classList.add('hidden');
+                updatePriceDisplay();
+
+            } catch (err) {
+                // Jika error query / tidak ketemu -> Diskon 0%
+                appliedDiscountPercent = 0;
+                isEndorseSuccess = false;
+                feedback.innerText = '❌ Kode voucher tidak valid. Diskon 0%.';
+                feedback.className = 'text-[11px] mt-1 text-red-400 font-semibold';
+                document.getElementById('discountRow').classList.add('hidden');
+                updatePriceDisplay();
+            }
         }
 
         function updatePriceDisplay() {
             document.getElementById('summaryBasePrice').innerText = formatRupiah(currentBasePrice);
             
             let finalPrice = currentBasePrice;
-            if (isCouponApplied) {
-                let discount = currentBasePrice * 0.30;
+            if (appliedDiscountPercent > 0) {
+                let discount = currentBasePrice * (appliedDiscountPercent / 100);
                 finalPrice = currentBasePrice - discount;
                 document.getElementById('summaryDiscount').innerText = '- ' + formatRupiah(Math.round(discount));
             }
@@ -576,88 +620,11 @@
         }
 
         function formatRupiah(angka) {
-            return 'Rp ' + angka.toLocaleString('id-ID');
+            return 'Rp ' + Math.max(0, angka).toLocaleString('id-ID');
         }
 
-        /* ---- Integrasi pembayaran Cloudflare Worker (form pendaftaran + modal paket) ---- */
+        // --- PROSES CHECKOUT & POPUP INFLUENCER ---
         const PAYMENT_ENDPOINT = 'https://customlink-webhook.modernshopp.workers.dev/api/create-payment';
-        const FORM_PAY_BUTTON_TEXT = 'Lanjutkan Pembayaran via DANA';
-        const MODAL_PAY_BUTTON_TEXT = 'LANJUTKAN PEMBAYARAN 🚀';
-
-        // Helper: kirim payload pesanan ke Worker, sekaligus normalisasi pesan error agar informatif
-        async function requestCreatePayment(payload) {
-            const response = await fetch(PAYMENT_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            // Baca body mentah lebih dulu supaya halaman error non-JSON tetap bisa dilaporkan jelas
-            const rawText = await response.text();
-            let result = null;
-            try {
-                result = rawText ? JSON.parse(rawText) : null;
-            } catch (parseError) {
-                throw new Error('respons server pembayaran tidak valid (HTTP ' + response.status + ')');
-            }
-
-            if (!result) {
-                throw new Error('server pembayaran tidak mengirim data (HTTP ' + response.status + ')');
-            }
-
-            if (!response.ok && !result.message) {
-                throw new Error('server pembayaran gagal memproses permintaan (HTTP ' + response.status + ')');
-            }
-
-            return result;
-        }
-
-        // Helper: indikator proses pada tombol submit
-        function setButtonState(button, isLoading, loadingText, defaultText) {
-            if (!button) return;
-            button.disabled = isLoading;
-            button.innerText = isLoading ? loadingText : defaultText;
-        }
-
-        async function handleCheckout(event) {
-            if (event) event.preventDefault();
-
-            // 1. Ambil nilai input dari form
-            const buyerName = document.getElementById('buyerName').value.trim();
-            const buyerPhone = document.getElementById('buyerPhone').value.trim();
-            const packageName = document.getElementById('packageName').value;
-            const amount = 50000;
-
-            // 2. Validasi dasar sebelum menembak API
-            if (!buyerName || !buyerPhone) {
-                alert('Mohon lengkapi Nama Lengkap / Toko dan Nomor WhatsApp terlebih dahulu.');
-                return;
-            }
-
-            // 3. Indikator proses pada tombol submit
-            const payButton = document.getElementById('payButton');
-            setButtonState(payButton, true, 'Memproses pembayaran...', FORM_PAY_BUTTON_TEXT);
-
-            try {
-                // 4. Kirim data pesanan ke backend pembayaran (Cloudflare Worker)
-                const result = await requestCreatePayment({ buyerName, buyerPhone, packageName, amount });
-
-                // 5. Redirect browser bila pembayaran berhasil dibuat
-                if (result.success === true && result.paymentUrl) {
-                    window.location.href = result.paymentUrl;
-                    return;
-                }
-
-                alert('Gagal membuat pembayaran: ' + (result.message || 'Terjadi kesalahan pada server pembayaran.'));
-            } catch (err) {
-                // 6. Penanganan error jaringan / backend
-                alert('Gagal terhubung ke server pembayaran: ' + (err && err.message ? err.message : 'Periksa koneksi internet Anda.'));
-            } finally {
-                setButtonState(payButton, false, '', FORM_PAY_BUTTON_TEXT);
-            }
-        }
 
         async function processFinalCheckout(event) {
             if (event) event.preventDefault();
@@ -666,51 +633,88 @@
             const buyerPhone = document.getElementById('modalBuyerPhone').value.trim();
             const packageName = document.getElementById('modalTierTitle').innerText.trim();
             
-            // Hitung total harga final: harga paket dikurangi diskon voucher 30% bila voucher diterapkan
-            const amount = isCouponApplied ? Math.round(currentBasePrice * 0.70) : currentBasePrice;
+            const amount = Math.round(currentBasePrice * (1 - (appliedDiscountPercent / 100)));
 
             if (!buyerName || !buyerPhone) {
                 alert('Mohon lengkapi Nama Lengkap dan Nomor WhatsApp terlebih dahulu.');
                 return;
             }
 
-            if (!packageName || !amount) {
-                alert('Paket yang dipilih tidak valid. Silakan pilih paket kembali dari daftar harga.');
+            // JIKA KODE ENDORSE SUKSES (Diskon 100% / Rp 0)
+            if (isEndorseSuccess && amount === 0) {
+                closeCheckoutModal();
+                document.getElementById('influencerModal').classList.remove('hidden');
                 return;
             }
 
-            // Indikator proses pada tombol submit modal
+            // JIKA PEMBAYARAN NORMAL (Via Payment Gateway Worker)
             const modalPayButton = document.getElementById('modalPayButton');
-            setButtonState(modalPayButton, true, 'Memproses pembayaran...', MODAL_PAY_BUTTON_TEXT);
+            modalPayButton.disabled = true;
+            modalPayButton.innerText = 'Memproses pembayaran...';
 
             try {
-                // Kirim pesanan ke Cloudflare Worker (helper yang sama dipakai form pendaftaran)
-                const result = await requestCreatePayment({ buyerName, buyerPhone, packageName, amount });
+                const response = await fetch(PAYMENT_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ buyerName, buyerPhone, packageName, amount })
+                });
+                const result = await response.json();
 
                 if (result.success === true && result.paymentUrl) {
-                    // Tutup modal lalu redirect otomatis ke halaman pembayaran DANA
                     closeCheckoutModal();
                     window.location.href = result.paymentUrl;
                     return;
                 }
-
-                alert('Gagal membuat pembayaran: ' + (result.message || 'Terjadi kesalahan pada server pembayaran.'));
+                alert('Gagal membuat pembayaran: ' + (result.message || 'Terjadi kesalahan.'));
             } catch (err) {
-                alert('Gagal terhubung ke server pembayaran: ' + (err && err.message ? err.message : 'Periksa koneksi internet Anda.'));
+                alert('Gagal terhubung ke server pembayaran.');
             } finally {
-                setButtonState(modalPayButton, false, '', MODAL_PAY_BUTTON_TEXT);
+                modalPayButton.disabled = false;
+                modalPayButton.innerText = 'LANJUTKAN PEMBAYARAN 🚀';
+            }
+        }
+
+        // --- MENYIMPAN DATA INFLUENCER KE SUPABASE & KUNCI VENDORSE ---
+        async function submitInfluencerData() {
+            const slug = document.getElementById('inf_slug').value.trim().toLowerCase();
+            const voucher = document.getElementById('inf_voucher').value.trim().toUpperCase();
+            const whatsapp = document.getElementById('inf_whatsapp').value.trim();
+            const bankName = document.getElementById('inf_bank_name').value.trim();
+            const bankAcc = document.getElementById('inf_bank_account').value.trim();
+            const bankHolder = document.getElementById('inf_bank_holder').value.trim();
+
+            if (!slug || !voucher || !whatsapp || !bankName || !bankAcc || !bankHolder) {
+                alert('Mohon lengkapi semua kolom form!');
+                return;
+            }
+
+            try {
+                const { error: insErr } = await sbClient.from('influencers').insert([{
+                    client_slug: slug,
+                    voucher_code: voucher,
+                    discount_percent: 30,
+                    whatsapp: whatsapp,
+                    bank_name: bankName,
+                    bank_account: bankAcc,
+                    bank_holder: bankHolder
+                }]);
+
+                if (insErr) throw insErr;
+
+                const { error: updErr } = await sbClient.from('endorse_vouchers')
+                    .update({ is_used: true })
+                    .eq('endorse_code', activeEndorseCode);
+
+                if (updErr) throw updErr;
+
+                alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
+                document.getElementById('influencerModal').classList.add('hidden');
+                window.location.href = `admin.html?slug=${slug}`;
+            } catch (err) {
+                console.error(err);
+                alert('Gagal menyimpan data. Pastikan Client Slug belum digunakan orang lain.');
             }
         }
     </script>
-    <!-- Floating Sticky CTA Bar -->
-<div class="fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-purple-500/30 p-3 px-6 flex items-center justify-between shadow-2xl">
-    <div>
-        <div class="text-[10px] text-gray-400 uppercase tracking-wider">Promo Sekali Bayar</div>
-        <div class="text-sm font-black text-pink-400">Mulai Rp 285rb <span class="text-[10px] text-gray-400 font-normal">Selamanya</span></div>
-    </div>
-    <a href="#pricing" class="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg glow-neon btn-shine">
-        PILIH PAKET 🚀
-    </a>
-</div>
 </body>
 </html>
