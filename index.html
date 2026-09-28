@@ -56,6 +56,16 @@
                 <p id="hero-subtitle" class="text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light"></p>
             </div>
             
+            <!-- Input Voucher untuk Pembeli / Endorse -->
+            <div class="glass-card rounded-2xl p-4 mb-6 text-white shadow-lg">
+                <label class="block text-xs font-bold uppercase tracking-wider mb-2 text-pink-300">Punya Kode Voucher / Endorse?</label>
+                <div class="flex gap-2">
+                    <input type="text" id="voucher-input" placeholder="Masukkan kode voucher" class="flex-1 bg-black/30 border border-white/20 rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider focus:outline-none focus:border-pink-500 text-white placeholder-white/40 font-bold">
+                    <button onclick="applyVoucher()" class="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all">Gunakan</button>
+                </div>
+                <p id="voucher-status" class="text-xs mt-2 hidden"></p>
+            </div>
+
             <div id="products-container" class="space-y-4 min-h-[400px]"></div>
 
             <div id="social-container" class="mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap"></div>
@@ -66,11 +76,56 @@
         </div>
     </div>
 
+    <!-- Modal Form Pendaftaran Influencer (Muncul jika pakai voucher endorse 100%) -->
+    <div id="influencer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-white/20 rounded-3xl p-6 w-full max-w-md text-white shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 bg-pink-500/20 text-pink-400 rounded-2xl mx-auto mb-3 flex items-center justify-center text-2xl">✨</div>
+                <h3 class="text-xl font-extrabold">Aktivasi Akun Influencer</h3>
+                <p class="text-xs text-gray-400 mt-1">Selamat! Voucher Endorse Anda berhasil digunakan. Silakan lengkapi data di bawah untuk mengaktifkan panel afiliasi Anda.</p>
+            </div>
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Client Slug (Nama Unik Toko/Admin)</label>
+                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500">
+                    <p class="text-[10px] text-gray-500 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Kode Voucher Publik Anda</label>
+                    <input type="text" id="inf_voucher" placeholder="contoh: TASYA30" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm uppercase font-bold text-pink-400 focus:outline-none focus:border-pink-500">
+                    <p class="text-[10px] text-gray-500 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
+                    <input type="text" id="inf_whatsapp" placeholder="08xxxxxxxxxx" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nama Bank / E-Wallet</label>
+                    <input type="text" id="inf_bank_name" placeholder="BCA / DANA / Mandiri" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nomor Rekening</label>
+                    <input type="text" id="inf_bank_account" placeholder="1234567890" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-300 mb-1">Nama Pemilik Rekening</label>
+                    <input type="text" id="inf_bank_holder" placeholder="Sesuai buku tabungan" class="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-pink-500">
+                </div>
+                <button onclick="submitInfluencerData()" class="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3 rounded-xl font-bold text-sm shadow-lg transition-all mt-2">Simpan & Aktifkan Panel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+        
+        let currentProducts = [];
+        let appliedDiscount = 0; // 0 atau 30 (persen)
+        let isEndorseVoucher = false;
+        let activeEndorseCode = "";
         
         function getSlug() { 
             const params = new URLSearchParams(location.search);
@@ -86,7 +141,22 @@
         function fmt(p) { 
             if (!p) return ""; 
             const n = parseInt(p.toString().replace(/[^0-9]/g, "")); 
-            return isNaN(n) ? p : "Rp " + n.toLocaleString("id-ID"); 
+            if (isNaN(n)) return p;
+            
+            let finalPrice = n;
+            if (isEndorseVoucher) {
+                finalPrice = 0; // Diskon 100% jadi Rp 0
+            } else if (appliedDiscount > 0) {
+                finalPrice = n - (n * appliedDiscount / 100);
+            }
+
+            if (finalPrice === 0 && (isEndorseVoucher || appliedDiscount > 0)) {
+                return `<span class="line-through text-gray-400 text-xs mr-2">Rp ${n.toLocaleString("id-ID")}</span> <span class="text-green-600 font-extrabold">GRATIS (ENDORSE)</span>`;
+            }
+            if (appliedDiscount > 0) {
+                return `<span class="line-through text-gray-400 text-xs mr-2">Rp ${n.toLocaleString("id-ID")}</span> <span class="text-pink-600 font-extrabold">Rp ${finalPrice.toLocaleString("id-ID")}</span>`;
+            }
+            return "Rp " + n.toLocaleString("id-ID"); 
         }
         
         async function fetchSettings(slug) {
@@ -100,6 +170,122 @@
             const { data, error } = await sbClient.from("products").select("id, title, price, image_url, affiliate_link, sort_order, is_active").eq("client_slug", slug).eq("is_active", true).order("sort_order", { ascending: true });
             if (error) { console.error("Products error:", error); return []; }
             return data || [];
+        }
+        
+        // --- Logika Validasi Voucher (Endorse 100% atau Affiliate 30%) ---
+        async function applyVoucher() {
+            const code = document.getElementById("voucher-input").value.trim().toLowerCase();
+            const statusEl = document.getElementById("voucher-status");
+            if (!code) return;
+
+            statusEl.classList.remove("hidden");
+            statusEl.textContent = "Mengecek voucher...";
+            statusEl.className = "text-xs mt-2 text-yellow-400 font-medium";
+
+            try {
+                // 1. Cek apakah ini Voucher Endorse 100%
+                const { data: endorseData, error: endorseErr } = await sbClient
+                    .from("endorse_vouchers")
+                    .select("*")
+                    .eq("endorse_code", code)
+                    .single();
+
+                if (endorseData) {
+                    if (endorseData.is_used) {
+                        statusEl.textContent = "❌ Voucher endorse ini sudah pernah digunakan!";
+                        statusEl.className = "text-xs mt-2 text-red-400 font-medium";
+                        return;
+                    }
+                    // Voucher endorse valid!
+                    isEndorseVoucher = true;
+                    activeEndorseCode = endorseData.endorse_code;
+                    appliedDiscount = 100;
+                    statusEl.textContent = "🎉 Voucher Endorse Berhasil! Diskon 100% Aktif.";
+                    statusEl.className = "text-xs mt-2 text-green-400 font-bold";
+                    renderProducts(currentProducts);
+                    return;
+                }
+
+                // 2. Jika bukan endorse, cek apakah ini Voucher Afiliasi Influencer Publik (Diskon 30%)
+                const { data: infData, error: infErr } = await sbClient
+                    .from("influencers")
+                    .select("*")
+                    .ilike("voucher_code", code)
+                    .single();
+
+                if (infData) {
+                    isEndorseVoucher = false;
+                    appliedDiscount = infData.discount_percent || 30;
+                    statusEl.textContent = `✅ Voucher Berhasil! Diskon ${appliedDiscount}% Aktif.`;
+                    statusEl.className = "text-xs mt-2 text-green-400 font-bold";
+                    renderProducts(currentProducts);
+                    return;
+                }
+
+                statusEl.textContent = "❌ Kode voucher tidak ditemukan atau tidak valid.";
+                statusEl.className = "text-xs mt-2 text-red-400 font-medium";
+            } catch (err) {
+                console.error("Voucher check error:", err);
+                statusEl.textContent = "❌ Terjadi kesalahan saat memeriksa voucher.";
+                statusEl.className = "text-xs mt-2 text-red-400 font-medium";
+            }
+        }
+
+        // --- Simulasi Checkout / Pembelian Produk ---
+        function handleCheckout(productTitle, productPrice, affiliateLink) {
+            if (isEndorseVoucher) {
+                // Jika pakai voucher endorse, setelah klik beli langsung muncul modal pendaftaran influencer
+                document.getElementById("influencer-modal").classList.remove("hidden");
+            } else {
+                // Pembelian biasa diarahkan ke link affiliate produk
+                window.open(affiliateLink || '#', '_blank');
+            }
+        }
+
+        // --- Menyimpan Data Influencer & Mengunci Voucher Endorse ---
+        async function submitInfluencerData() {
+            const slug = document.getElementById("inf_slug").value.trim().toLowerCase();
+            const voucher = document.getElementById("inf_voucher").value.trim().toUpperCase();
+            const whatsapp = document.getElementById("inf_whatsapp").value.trim();
+            const bankName = document.getElementById("inf_bank_name").value.trim();
+            const bankAcc = document.getElementById("inf_bank_account").value.trim();
+            const bankHolder = document.getElementById("inf_bank_holder").value.trim();
+
+            if (!slug || !voucher || !whatsapp || !bankName || !bankAcc || !bankHolder) {
+                alert("Mohon lengkapi semua kolom form!");
+                return;
+            }
+
+            try {
+                // 1. Masukkan data ke tabel influencers
+                const { error: insErr } = await sbClient.from("influencers").insert([{
+                    client_slug: slug,
+                    voucher_code: voucher,
+                    discount_percent: 30,
+                    whatsapp: whatsapp,
+                    bank_name: bankName,
+                    bank_account: bankAcc,
+                    bank_holder: bankHolder
+                }]);
+
+                if (insErr) throw insErr;
+
+                // 2. Tandai voucher endorse sebagai sudah terpakai (is_used = true)
+                const { error: updErr } = await sbClient.from("endorse_vouchers")
+                    .update({ is_used: true })
+                    .eq("endorse_code", activeEndorseCode);
+
+                if (updErr) throw updErr;
+
+                alert("🎉 Pendaftaran Berhasil! Akun influencer Anda sudah aktif.");
+                document.getElementById("influencer-modal").classList.add("hidden");
+                
+                // Redirect ke halaman admin mereka
+                window.location.href = `admin.html?slug=${slug}`;
+            } catch (err) {
+                console.error("Gagal mendaftarkan influencer:", err);
+                alert("Gagal menyimpan data. Pastikan Client Slug belum digunakan orang lain.");
+            }
         }
         
         function renderHero(s) {
@@ -170,6 +356,7 @@
         }
         
         function renderProducts(ps) {
+            currentProducts = ps;
             const c = document.getElementById("products-container");
             if (!ps || !ps.length) { 
                 c.innerHTML = '<p class="text-center text-gray-500 text-sm font-medium">Belum ada produk aktif.</p>'; 
@@ -182,19 +369,19 @@
                     : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
 
                 return `<div class="product-glass rounded-2xl p-3.5 shadow-xl relative overflow-hidden group">
-                    <a href="${p.affiliate_link || '#'}" target="_blank" class="block">
+                    <div onclick="handleCheckout('${p.title}', '${p.price}', '${p.affiliate_link}')" class="block cursor-pointer">
                         <div class="flex gap-4 items-center">
                             <div class="relative flex-shrink-0 w-16 h-16">${imgHtml}${badge}</div>
                             <div class="flex-1 min-w-0 pr-1">
                                 <h3 class="font-bold text-gray-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-pink-600 transition-colors">${p.title || ''}</h3>
                                 <p class="text-pink-600 font-extrabold text-sm sm:text-base mt-0.5">${fmt(p.price)}</p>
                                 <div class="mt-2.5 inline-flex items-center gap-1.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-pink-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md btn-shine transition-all">
-                                    <span>Beli Sekarang</span>
+                                    <span>${isEndorseVoucher ? 'Klaim / Checkout Gratis' : 'Beli Sekarang'}</span>
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                                 </div>
                             </div>
                         </div>
-                    </a>
+                    </div>
                 </div>`;
             }).join("");
         }
