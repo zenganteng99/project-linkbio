@@ -1,3 +1,4 @@
-/admin.html    /admin.html   200
-/landingpage.html /landingpage.html 200
-/*    /index.html   200
+/admin       /admin.html     200
+/landingpage /landingpage.html 200
+/            /landingpage.html 200
+/*           /index.html     200
