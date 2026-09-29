@@ -84,7 +84,6 @@
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         
-        // Inisialisasi Supabase yang aman terhadap pemuatan defer
         let sbClient = null;
         function getSupabase() {
             if (!sbClient && window.supabase) {
@@ -93,6 +92,7 @@
             return sbClient;
         }
         
+        // Pengecualian route sistem (termasuk 'store') agar fallback tetap membaca slug 'default'
         function getSlug() { 
             const params = new URLSearchParams(location.search);
             if (params.get("slug")) return params.get("slug");
@@ -100,8 +100,9 @@
             
             const pathSegments = window.location.pathname.split("/").filter(Boolean);
             if (pathSegments.length > 0) {
-                const lastSegment = pathSegments[pathSegments.length - 1];
-                if (!lastSegment.includes('.html') && lastSegment !== 'landingpage' && lastSegment !== 'admin') {
+                const lastSegment = pathSegments[pathSegments.length - 1].toLowerCase();
+                const isSystemRoute = lastSegment.includes('.html') || ['landingpage', 'admin', 'store'].includes(lastSegment);
+                if (!isSystemRoute) {
                     return lastSegment;
                 }
             }
@@ -123,19 +124,20 @@
             return slug !== "default" ? await fetchSettings("default") : null;
         }
         
+        // Fallback otomatis ke produk 'default' jika slug klien kosong atau URL terbaca sebagai route sistem
         async function fetchProducts(slug) {
             const client = getSupabase();
             if (!client) return [];
             const { data, error } = await client.from("products").select("id, title, price, image_url, affiliate_link, sort_order, is_active").eq("client_slug", slug).eq("is_active", true).order("sort_order", { ascending: true });
             if (error) { console.error("Products error:", error); return []; }
-            return data || [];
+            if (data && data.length > 0) return data;
+            return slug !== "default" ? await fetchProducts("default") : [];
         }
         
         function renderHero(s) {
             if (s) {
                 if (s.profile_name) {
                     document.getElementById("profile-name").textContent = s.profile_name;
-                    // Sinkronkan judul tab dengan nama profil resmi
                     document.title = `${s.profile_name} | Bio Link Katalog`;
                 }
                 if (s.hero_title) document.getElementById("hero-title").textContent = s.hero_title;
@@ -211,7 +213,6 @@
             c.innerHTML = ps.map((p, i) => {
                 const badge = i < 3 ? '<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #' + (i + 1) + '</div>' : '';
                 
-                // Tambahkan decoding async & fallback onerror
                 const imgHtml = p.image_url 
                     ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">📦</div>`
                     : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
@@ -237,7 +238,6 @@
         async function init() {
             const slug = getSlug();
             
-            // Pertahankan judul server-side jika sudah diinjeksi HTMLRewriter
             if (!document.title || document.title === "Bio Link - Affiliate") {
                 document.title = "Bio Link - " + slug;
             }
