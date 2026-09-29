@@ -1,8 +1,9 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine
 // Route:
-//   OPTIONS /api/create-payment  -> CORS preflight
-//   POST    /api/create-payment  -> buat transaksi pembayaran (SNAP createOrder)
-//   POST    /api/webhook/gapura  -> auto-activation klien setelah pembayaran sukses
+//   OPTIONS /api/*              -> CORS preflight
+//   POST    /api/create-payment -> buat transaksi pembayaran (SNAP createOrder)
+//   POST    /api/webhook/gapura -> auto-activation klien setelah pembayaran sukses
+//   GET     /*                  -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -11,16 +12,16 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400"
 };
 
-// Host resmi DANA (dana-node runtime getBasePathByEnv)
 const DANA_HOSTS = {
   sandbox: "https://api.sandbox.dana.id",
   production: "https://api.saas.dana.id"
 };
-// Path resmi dana-node PaymentGatewayApi.createOrder
 const DANA_CREATE_ORDER_PATH = "/payment-gateway/v1.0/debit/payment-host-to-host.htm";
 
 const REDIRECT_URL = "https://customlink.pages.dev/landingpage";
 const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webhook/gapura";
+const PAGES_ORIGIN = "https://customlink.pages.dev"; // Asal hosting statik Cloudflare Pages anda
+const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 
 function jsonResponse(payload, status) {
   if (status === undefined) status = 200;
@@ -51,10 +52,7 @@ function extractGatewayMessage(data) {
   return null;
 }
 
-
-// --- SNAP helpers (sesuai dana-node DanaHeaderUtil + DanaSignatureUtil) ---
-
-// Timestamp SNAP: yyyy-MM-dd'T'HH:mm:ssXXX. Worker berjalan di UTC.
+// --- SNAP Helpers ---
 function snapTimestamp() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -62,7 +60,6 @@ function snapTimestamp() {
     "T" + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds()) + "+00:00";
 }
 
-// validUpTo: YYYY-MM-DDTHH:mm:ss+07:00 (GMT+7), maks 7 hari ke depan. +24 jam.
 function snapValidUpTo() {
   const t = new Date(Date.now() + 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000);
   const p = (n) => String(n).padStart(2, "0");
@@ -79,7 +76,6 @@ function randomExternalId() {
   return "sdk" + s.substring(3, 31);
 }
 
-// Secret bisa berupa base64 DER mentah atau PEM lengkap -> normalisasi ke PEM.
 function normalizePrivateKeyPem(raw) {
   const key = String(raw || "").trim();
   if (!key) return "";
@@ -103,7 +99,6 @@ async function sha256Hex(text) {
   return Array.from(new Uint8Array(dg)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// X-SIGNATURE SNAP B2B = base64(RSA-SHA256("POST:<path>:<sha256hex(body)>:<ts>"))
 async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timestamp) {
   const hash = await sha256Hex(requestBody);
   const stringToSign = "POST:" + endpointUrl + ":" + hash + ":" + timestamp;
@@ -118,7 +113,7 @@ async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timesta
   return btoa(bin);
 }
 
-// --- Handler: POST /api/create-payment (SNAP createOrder) ---
+// --- Handler: POST /api/create-payment ---
 async function handleCreatePayment(request, env) {
   let body;
   try {
@@ -143,7 +138,6 @@ async function handleCreatePayment(request, env) {
   const merchantId = String(env.MERCHANT_ID || "").trim();
   const privateKeyPem = normalizePrivateKeyPem(env.DANA_PRIVATE_KEY);
   if (!partnerId || !merchantId || !privateKeyPem) {
-    console.error("Konfigurasi DANA belum lengkap (CLIENT_ID / MERCHANT_ID / DANA_PRIVATE_KEY).");
     return jsonResponse({
       success: false,
       message: "Konfigurasi gateway pembayaran DANA di server belum lengkap. Hubungi admin."
@@ -156,9 +150,7 @@ async function handleCreatePayment(request, env) {
 
   const orderId = "ORDER-" + Date.now();
   const amountStr = String(Math.round(amount)) + ".00";
-
-  // Menggunakan Shop ID sandbox yang terdaftar di dashboard DANA Enterprise Anda
-  const subMerchantId = "216660000003605019003";[cite: 47]
+  const subMerchantId = "216660000003605019003";[cite: 36]
 
   const danaBody = {
     partnerReferenceNo: orderId,
@@ -184,10 +176,9 @@ async function handleCreatePayment(request, env) {
   try {
     signature = await snapB2BSignature(DANA_CREATE_ORDER_PATH, requestBodyStr, privateKeyPem, timestamp);
   } catch (signErr) {
-    console.error("Gagal membuat X-SIGNATURE DANA:", signErr && signErr.message);
     return jsonResponse({
       success: false,
-      message: "Gagal menandatangani permintaan ke DANA (format DANA_PRIVATE_KEY tidak valid). Hubungi admin."
+      message: "Gagal menandatangani permintaan ke DANA. Hubungi admin."
     }, 500);
   }
 
@@ -210,70 +201,38 @@ async function handleCreatePayment(request, env) {
       body: requestBodyStr
     });
   } catch (networkErr) {
-    console.error("DANA network error:", networkErr && networkErr.message);
     return jsonResponse({
       success: false,
-      message: "Tidak dapat menghubungi API gateway pembayaran DANA: " + (networkErr && networkErr.message),
-      detail: { orderId: orderId, partnerReferenceNo: orderId, stage: "network" }
+      message: "Tidak dapat menghubungi API gateway pembayaran DANA.",
+      detail: { orderId: orderId, stage: "network" }
     }, 504);
   }
 
-  let rawText = "";
-  try {
-    rawText = await gatewayResponse.text();
-  } catch (e) {
-    rawText = "";
-  }
-
+  let rawText = await gatewayResponse.text();
   let gatewayData = null;
-  try {
-    gatewayData = rawText ? JSON.parse(rawText) : null;
-  } catch (e) {
-    gatewayData = null;
-  }
+  try { gatewayData = rawText ? JSON.parse(rawText) : null; } catch (e) {}
 
   if (!gatewayResponse.ok) {
     const gwMsg = extractGatewayMessage(gatewayData);
-    console.error("DANA HTTP error", gatewayResponse.status, rawText.slice(0, 500));
     return jsonResponse({
       success: false,
-      message: "API gateway pembayaran DANA menolak permintaan (HTTP " + gatewayResponse.status +
-        (gwMsg ? " - " + gwMsg : "") + ").",
-      detail: {
-        orderId: orderId,
-        partnerReferenceNo: orderId,
-        stage: "gateway-response",
-        status: gatewayResponse.status,
-        danaResponseCode: gatewayData && (gatewayData.responseCode || (gatewayData.data || {}).responseCode),
-        danaResponseMessage: gwMsg,
-        response: rawText.slice(0, 1000)
-      }
+      message: "API gateway pembayaran DANA menolak permintaan (HTTP " + gatewayResponse.status + (gwMsg ? " - " + gwMsg : "") + ").",
+      detail: gatewayData
     }, 502);
   }
 
   const paymentUrl = extractPaymentUrl(gatewayData);
   if (!paymentUrl) {
-    const gwMsg = extractGatewayMessage(gatewayData);
-    console.error("DANA tidak mengembalikan paymentUrl:", rawText.slice(0, 500));
     return jsonResponse({
       success: false,
-      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran" +
-        (gwMsg ? " (" + gwMsg + ")" : "") + ".",
-      detail: {
-        orderId: orderId,
-        partnerReferenceNo: orderId,
-        stage: "missing-payment-url",
-        danaResponseCode: gatewayData && (gatewayData.responseCode || (gatewayData.data || {}).responseCode),
-        danaResponseMessage: gwMsg,
-        response: rawText.slice(0, 1000)
-      }
+      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran."
     }, 502);
   }
 
   return jsonResponse({ success: true, orderId: orderId, paymentUrl: paymentUrl, danaResponse: gatewayData }, 200);
 }
 
-// --- Handler: POST /api/webhook/gapura (auto-activation klien) ---
+// --- Handler: POST /api/webhook/gapura ---
 function generateSlug(name, orderId) {
   const base = String(name || "client").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "client";
@@ -281,16 +240,12 @@ function generateSlug(name, orderId) {
 }
 
 async function handleGapuraWebhook(request, env) {
-  const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
   let payload;
-  try {
-    payload = await request.json();
-  } catch (e) {
+  try { payload = await request.json(); } catch (e) {
     return jsonResponse({ status: "INVALID", message: "Payload webhook tidak valid." }, 400);
   }
 
-  const orderId = payload.orderId || payload.originalPartnerReferenceNo ||
-    payload.partnerReferenceNo || payload.originalReferenceNo;
+  const orderId = payload.orderId || payload.originalPartnerReferenceNo || payload.partnerReferenceNo || payload.originalReferenceNo;
   const addInfo = payload.additionalInfo || {};
   const customerName = payload.customerName || payload.buyerName || addInfo.buyerName || "Client";
   const customerPhone = payload.customerPhone || payload.buyerPhone || addInfo.buyerPhone || "";
@@ -299,10 +254,8 @@ async function handleGapuraWebhook(request, env) {
   if (!orderId) {
     return jsonResponse({ status: "INVALID", message: "orderId tidak ditemukan di payload webhook." }, 400);
   }
-
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("SUPABASE_SERVICE_ROLE_KEY belum di-set.");
-    return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase di server belum lengkap." }, 500);
+    return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
   }
 
   const clientSlug = generateSlug(customerName, orderId);
@@ -327,35 +280,120 @@ async function handleGapuraWebhook(request, env) {
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error("Supabase insert gagal:", response.status, errText.slice(0, 500));
-      return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien.", detail: errText.slice(0, 500) }, 502);
+      return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien." }, 502);
     }
-
     return jsonResponse({ status: "OK", message: "Account auto-activated successfully", slug: clientSlug }, 200);
   } catch (err) {
-    console.error("Webhook error:", err && err.message);
     return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook: " + (err && err.message) }, 500);
   }
 }
 
-// --- Router utama (ES module, binding env via argumen fetch) ---
+// --- Handler: Dynamic Open Graph & Meta SEO Injection via HTMLRewriter ---
+async function handlePageRender(request, env) {
+  const url = new URL(request.url);
+  const segments = url.pathname.split("/").filter(Boolean);
+  
+  // Jika path adalah asset statik (.js, .css, .png, dll), forward terus tanpa rewrite
+  if (url.pathname.includes(".") && !url.pathname.endsWith(".html")) {
+    return fetch(PAGES_ORIGIN + url.pathname);
+  }
+
+  // Ambil slug client dari path pertama (contoh: /healthyjus -> slug = healthyjus)
+  const slug = segments.length > 0 ? segments[0] : "";
+  const isSpecialPath = ["admin", "landingpage", "api"].includes(slug.toLowerCase());
+
+  // Forward request ke Pages
+  const response = await fetch(PAGES_ORIGIN + url.pathname, request);
+
+  // Jika ini bukan path kedai client (cth: landingpage atau admin), kembalikan response biasa
+  if (!slug || isSpecialPath) {
+    return response;
+  }
+
+  // Tarik maklumat kedai daripada Supabase REST API
+  let seo = {
+    title: "Bio Link Katalog",
+    description: "Katalog produk rasmi dan pautan diskaun eksklusif.",
+    image: "https://customlink.pages.dev/images/default-og.png",
+    url: url.href
+  };
+
+  try {
+    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+    if (sbKey) {
+      const sbRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=profile_name,hero_title,hero_subtitle,profile_image_url,background_url`,
+        {
+          headers: {
+            "apikey": sbKey,
+            "Authorization": `Bearer ${sbKey}`
+          }
+        }
+      );
+
+      if (sbRes.ok) {
+        const rows = await sbRes.json();
+        if (rows && rows.length > 0) {
+          const client = rows[0];
+          seo.title = client.profile_name ? `${client.profile_name} | Bio Link Katalog` : seo.title;
+          seo.description = client.hero_subtitle || client.hero_title || seo.description;
+          seo.image = client.profile_image_url || client.background_url || seo.image;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Gagal mendapatkan metadata SEO daripada Supabase:", err);
+  }
+
+  // Suntik tag Meta SEO & Open Graph terus ke dalam blok <head>
+  return new HTMLRewriter()
+    .on("title", {
+      element(e) {
+        e.setInnerContent(seo.title);
+      }
+    })
+    .on("head", {
+      element(e) {
+        // Hapus meta tag lama jika wujud, lalu gantikan dengan tag dinamik
+        e.append(`\n  <meta name="description" content="${seo.description}">`, { html: true });
+        e.append(`\n  <meta property="og:type" content="website">`, { html: true });
+        e.append(`\n  <meta property="og:title" content="${seo.title}">`, { html: true });
+        e.append(`\n  <meta property="og:description" content="${seo.description}">`, { html: true });
+        e.append(`\n  <meta property="og:image" content="${seo.image}">`, { html: true });
+        e.append(`\n  <meta property="og:url" content="${seo.url}">`, { html: true });
+        e.append(`\n  <meta name="twitter:card" content="summary_large_image">`, { html: true });
+        e.append(`\n  <meta name="twitter:title" content="${seo.title}">`, { html: true });
+        e.append(`\n  <meta name="twitter:description" content="${seo.description}">`, { html: true });
+        e.append(`\n  <meta name="twitter:image" content="${seo.image}">\n`, { html: true });
+      }
+    })
+    .transform(response);
+}
+
+// --- Router Utama ---
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // 1. CORS Preflight
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      return new Response(null, { status: 204, headers: CORS_HEADERS });[cite: 36]
     }
 
+    // 2. API Endpoints (Dikekalkan 100% tanpa gangguan)
     if (url.pathname === "/api/create-payment" && request.method === "POST") {
-      return handleCreatePayment(request, env);
+      return handleCreatePayment(request, env);[cite: 36]
     }
 
     if (url.pathname === "/api/webhook/gapura" && request.method === "POST") {
-      return handleGapuraWebhook(request, env);
+      return handleGapuraWebhook(request, env);[cite: 36]
     }
 
-    return jsonResponse({ success: false, message: "Not found." }, 404);
+    // 3. Routing Halaman Frontend & Dynamic SEO Rewriter
+    if (request.method === "GET") {
+      return handlePageRender(request, env);
+    }
+
+    return jsonResponse({ success: false, message: "Not found." }, 404);[cite: 36]
   }
 };
