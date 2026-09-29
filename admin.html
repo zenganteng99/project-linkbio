@@ -290,12 +290,14 @@
             }
         }
         
+        // Mengekstrak nama file murni tanpa path bucket
         function extractPathFromUrl(url) {
             if (!url) return null;
-            const match = url.match(/\/storage\/v1\/object\/public\/([^?]+)/);
-            return match ? match[1] : null;
+            const match = url.match(/\/public-assets\/([^?]+)/);
+            return match ? decodeURIComponent(match[1]) : null;
         }
 
+        // Kompresi foto sisi klien ke format JPEG 800px untuk memangkas storage dan LCP
         function compressImage(file, maxWidth = 800, quality = 0.75) {
             return new Promise((resolve) => {
                 if (!file.type.startsWith('image/')) {
@@ -333,17 +335,18 @@
             });
         }
         
-        async function cleanupOldStorageFiles(clientSlug, typePrefix) {
+        // Membersihkan file lama di Supabase Storage berdasarkan prefix file
+        async function cleanupOldStorageFiles(prefix) {
             try {
                 const { data: files, error } = await sbClient.storage.from(SB_BUCKET).list('', {
-                    limit: 200,
-                    search: typePrefix + '_' + clientSlug
+                    limit: 100,
+                    search: prefix
                 });
                 
                 if (error || !files) return;
 
                 const filesToRemove = files
-                    .filter(f => f.name.startsWith(typePrefix + '_' + clientSlug))
+                    .filter(f => f.name.startsWith(prefix))
                     .map(f => f.name);
 
                 if (filesToRemove.length > 0) {
@@ -354,12 +357,25 @@
             }
         }
         
-        async function uploadImage(file, type, clientSlug) {
+        // Menghapus file fisik dari storage secara spesifik berdasarkan URL
+        async function deleteImage(url) {
+            try {
+                const path = extractPathFromUrl(url);
+                if (path) {
+                    await sbClient.storage.from(SB_BUCKET).remove([path]);
+                }
+            } catch (err) {
+                console.error("Delete image error:", err);
+            }
+        }
+        
+        // Mengunggah file setelah dikompresi dan membersihkan file lama yang sejenis
+        async function uploadImage(file, filePrefix) {
             const optimizedFile = await compressImage(file, 800, 0.75);
-            await cleanupOldStorageFiles(clientSlug, type);
+            await cleanupOldStorageFiles(filePrefix);
 
             const ext = optimizedFile.name.split(".").pop();
-            const filename = `${type}_${clientSlug}_${Date.now()}.${ext}`;
+            const filename = `${filePrefix}_${Date.now()}.${ext}`;
             
             const { data, error } = await sbClient.storage.from(SB_BUCKET).upload(filename, optimizedFile, {
                 cacheControl: "3600",
@@ -368,11 +384,6 @@
             if (error) throw error;
             const { data: urlData } = sbClient.storage.from(SB_BUCKET).getPublicUrl(data.path);
             return urlData.publicUrl;
-        }
-        
-        async function deleteImage(url) {
-            const path = extractPathFromUrl(url);
-            if (path) await sbClient.storage.from(SB_BUCKET).remove([path]);
         }
         
         function createProductCard(product, index) {
@@ -593,9 +604,7 @@
             showSection("login-section");
         }
         
-        // --- PERBAIKAN TOMBOL PREVIEW (Mengarahkan langsung ke path pendek) ---
         function previewPage() {
-            // Mengarahkan ke format path pendek, misal: /healthyjus
             const cleanOrigin = window.location.origin;
             window.open(`${cleanOrigin}/${currentSlug}`, "_blank");
         }
@@ -624,14 +633,22 @@
                 let profileImageUrl = originalSettings.profile_image_url || "";
                 let backgroundUrl = originalSettings.background_url || "";
                 
+                // Pembaruan foto profil & penghapusan otomatis foto lama
                 const profileInput = document.getElementById("profile_image");
                 if (profileInput.files[0]) {
-                    profileImageUrl = await uploadImage(profileInput.files[0], "profile", currentSlug);
+                    if (originalSettings.profile_image_url) {
+                        await deleteImage(originalSettings.profile_image_url);
+                    }
+                    profileImageUrl = await uploadImage(profileInput.files[0], `profile_${currentSlug}`);
                 }
                 
+                // Pembaruan background hero & penghapusan otomatis background lama
                 const bgInput = document.getElementById("hero_background");
                 if (bgInput.files[0]) {
-                    backgroundUrl = await uploadImage(bgInput.files[0], "background", currentSlug);
+                    if (originalSettings.background_url) {
+                        await deleteImage(originalSettings.background_url);
+                    }
+                    backgroundUrl = await uploadImage(bgInput.files[0], `background_${currentSlug}`);
                 }
                 
                 const settingsPayload = {
@@ -677,20 +694,25 @@
                     const imgInput = document.getElementById(`img_${i}`);
                     const originalImg = document.getElementById(`original_img_${i}`).value;
                     
+                    // Jika slot produk dikosongkan, hapus data di database dan file gambar di storage
                     if (!title && !link && !price && !imgInput.files[0]) {
                         const existingInDb = originalProducts.find(p => p.sort_order === sortOrder);
                         if (existingInDb && existingInDb.id) {
                             if (existingInDb.image_url) await deleteImage(existingInDb.image_url);
+                            await cleanupOldStorageFiles(`product_${currentSlug}_${sortOrder}`);
                             await sbClient.from("products").delete().eq("id", existingInDb.id);
                         }
                         continue;
                     }
                     
                     let imageUrl = originalImg;
+                    // Jika ada upload gambar baru, hapus gambar lama lalu upload gambar terkompresi
                     if (imgInput.files[0]) {
+                        if (originalImg) {
+                            await deleteImage(originalImg);
+                        }
                         const productPrefix = `product_${currentSlug}_${sortOrder}`;
-                        await cleanupOldStorageFiles(currentSlug, productPrefix);
-                        imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`, currentSlug);
+                        imageUrl = await uploadImage(imgInput.files[0], productPrefix);
                     }
                     
                     const existingProduct = originalProducts.find(p => p.sort_order === sortOrder);
