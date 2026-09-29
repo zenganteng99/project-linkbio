@@ -150,7 +150,7 @@ async function handleCreatePayment(request, env) {
 
   const orderId = "ORDER-" + Date.now();
   const amountStr = String(Math.round(amount)) + ".00";
-  const subMerchantId = "216660000003605019003";[cite: 36]
+  const subMerchantId = "216660000003605019003";
 
   const danaBody = {
     partnerReferenceNo: orderId,
@@ -377,12 +377,12 @@ export default {
 
     // 1. CORS Preflight
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });[cite: 36]
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
     // 2. API Endpoints (Dikekalkan 100% tanpa gangguan)
     if (url.pathname === "/api/create-payment" && request.method === "POST") {
-      return handleCreatePayment(request, env);[cite: 36]
+      return handleCreatePayment(request, env);
     }
 
     if (url.pathname === "/api/webhook/gapura" && request.method === "POST") {
@@ -394,6 +394,6 @@ export default {
       return handlePageRender(request, env);
     }
 
-    return jsonResponse({ success: false, message: "Not found." }, 404);[cite: 36]
+    return jsonResponse({ success: false, message: "Not found." }, 404);
   }
 };
