@@ -1,8 +1,8 @@
 // customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine
 // Route:
 //   OPTIONS /api/*              -> CORS preflight
-//   POST    /api/create-payment -> buat transaksi pembayaran (SNAP createOrder)
-//   POST    /api/webhook/gapura -> auto-activation klien setelah pembayaran sukses
+//   POST    /api/create-payment -> Buat transaksi pembayaran (SNAP createOrder)
+//   POST    /api/webhook/gapura -> Auto-aktivasi klien setelah pembayaran sukses
 //   GET     /*                  -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
 
 const CORS_HEADERS = {
@@ -18,13 +18,13 @@ const DANA_HOSTS = {
 };
 const DANA_CREATE_ORDER_PATH = "/payment-gateway/v1.0/debit/payment-host-to-host.htm";
 
-const REDIRECT_URL = "https://customlink.pages.dev/landingpage";
+// Arahkan kembali ke root domain (landing page)
+const REDIRECT_URL = "https://customlink.pages.dev/";
 const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webhook/gapura";
-const PAGES_ORIGIN = "https://customlink.pages.dev"; // Asal hosting statik Cloudflare Pages anda
+const PAGES_ORIGIN = "https://customlink.pages.dev";
 const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 
-function jsonResponse(payload, status) {
-  if (status === undefined) status = 200;
+function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status: status,
     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -150,7 +150,7 @@ async function handleCreatePayment(request, env) {
 
   const orderId = "ORDER-" + Date.now();
   const amountStr = String(Math.round(amount)) + ".00";
-  const subMerchantId = "216660000003605019003";
+  const subMerchantId = env.SUB_MERCHANT_ID || "216660000003605019003";
 
   const danaBody = {
     partnerReferenceNo: orderId,
@@ -282,7 +282,7 @@ async function handleGapuraWebhook(request, env) {
     if (!response.ok) {
       return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien." }, 502);
     }
-    return jsonResponse({ status: "OK", message: "Account auto-activated successfully", slug: clientSlug }, 200);
+    return jsonResponse({ status: "OK", message: "Akun berhasil diaktifkan secara otomatis", slug: clientSlug }, 200);
   } catch (err) {
     return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook: " + (err && err.message) }, 500);
   }
@@ -292,29 +292,35 @@ async function handleGapuraWebhook(request, env) {
 async function handlePageRender(request, env) {
   const url = new URL(request.url);
   const segments = url.pathname.split("/").filter(Boolean);
-  
-  // Jika path adalah asset statik (.js, .css, .png, dll), forward terus tanpa rewrite
+  const pagesHost = new URL(PAGES_ORIGIN).host;
+
+  // Lewatkan aset statis (.js, .css, gambar, ikon) langsung ke Cloudflare Pages
   if (url.pathname.includes(".") && !url.pathname.endsWith(".html")) {
-    return fetch(PAGES_ORIGIN + url.pathname);
+    return fetch(PAGES_ORIGIN + url.pathname, {
+      headers: { "Host": pagesHost }
+    });
   }
 
-  // Ambil slug client dari path pertama (contoh: /healthyjus -> slug = healthyjus)
   const slug = segments.length > 0 ? segments[0] : "";
-  const isSpecialPath = ["admin", "landingpage", "api"].includes(slug.toLowerCase());
+  const isSpecialPath = ["admin", "api"].includes(slug.toLowerCase());
 
-  // Forward request ke Pages
-  const response = await fetch(PAGES_ORIGIN + url.pathname, request);
-
-  // Jika ini bukan path kedai client (cth: landingpage atau admin), kembalikan response biasa
+  // Untuk root domain (/) atau /admin, teruskan ke berkas masing-masing
   if (!slug || isSpecialPath) {
-    return response;
+    const targetPath = slug === "admin" ? "/admin.html" : url.pathname;
+    return fetch(PAGES_ORIGIN + targetPath, {
+      headers: { "Host": pagesHost }
+    });
   }
 
-  // Tarik maklumat kedai daripada Supabase REST API
+  // Untuk rute toko klien (/healthyjus), ambil template store.html langsung agar status HTTP 200 OK
+  const response = await fetch(PAGES_ORIGIN + "/store.html", {
+    headers: { "Host": pagesHost }
+  });
+
   let seo = {
     title: "Bio Link Katalog",
-    description: "Katalog produk rasmi dan pautan diskaun eksklusif.",
-    image: "https://customlink.pages.dev/images/default-og.png",
+    description: "Katalog produk resmi dan link diskon eksklusif.",
+    image: `${PAGES_ORIGIN}/images/default-og.png`,
     url: url.href
   };
 
@@ -342,10 +348,10 @@ async function handlePageRender(request, env) {
       }
     }
   } catch (err) {
-    console.error("Gagal mendapatkan metadata SEO daripada Supabase:", err);
+    console.error("Gagal mendapatkan metadata SEO dari Supabase:", err);
   }
 
-  // Suntik tag Meta SEO & Open Graph terus ke dalam blok <head>
+  // Suntikkan tag Meta SEO & Open Graph ke dalam tag <head>
   return new HTMLRewriter()
     .on("title", {
       element(e) {
@@ -354,7 +360,6 @@ async function handlePageRender(request, env) {
     })
     .on("head", {
       element(e) {
-        // Hapus meta tag lama jika wujud, lalu gantikan dengan tag dinamik
         e.append(`\n  <meta name="description" content="${seo.description}">`, { html: true });
         e.append(`\n  <meta property="og:type" content="website">`, { html: true });
         e.append(`\n  <meta property="og:title" content="${seo.title}">`, { html: true });
@@ -380,13 +385,13 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // 2. API Endpoints (Dikekalkan 100% tanpa gangguan)
+    // 2. API Endpoints
     if (url.pathname === "/api/create-payment" && request.method === "POST") {
       return handleCreatePayment(request, env);
     }
 
     if (url.pathname === "/api/webhook/gapura" && request.method === "POST") {
-      return handleGapuraWebhook(request, env);[cite: 36]
+      return handleGapuraWebhook(request, env);
     }
 
     // 3. Routing Halaman Frontend & Dynamic SEO Rewriter
