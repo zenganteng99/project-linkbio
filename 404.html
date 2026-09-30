@@ -110,27 +110,25 @@
             return "default"; 
         }
 
-        // --- SISTEM PELACAK ANALITIK (Non-blocking via sendBeacon) ---
+        // --- SISTEM PELACAK ANALITIK (100% Reliable Cross-Origin via fetch keepalive) ---
         function sendEvent(eventType, targetId = "") {
-            const currentSlug = getSlug();
-            const payload = JSON.stringify({
-                clientSlug: currentSlug,
-                eventType: eventType,
-                targetId: String(targetId),
-                referrer: document.referrer || "direct"
-            });
+            try {
+                const currentSlug = getSlug();
+                const payload = JSON.stringify({
+                    clientSlug: currentSlug,
+                    eventType: eventType,
+                    targetId: String(targetId || ""),
+                    referrer: document.referrer || "direct"
+                });
 
-            if (navigator.sendBeacon) {
-                const blob = new Blob([payload], { type: "application/json" });
-                navigator.sendBeacon(TRACK_ENDPOINT, blob);
-            } else {
                 fetch(TRACK_ENDPOINT, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: payload,
-                    keepalive: true
-                }).catch(() => {});
-            }
+                    keepalive: true,
+                    mode: "cors"
+                }).catch(function() {});
+            } catch (err) {}
         }
         
         function fmt(p) { 
