@@ -131,16 +131,23 @@
                             <span class="inline-flex items-center gap-1 text-pink-600 font-semibold"><span class="w-2 h-2 rounded-full bg-pink-500"></span> Klik</span>
                         </div>
                     </div>
-                    <div id="analytics-chart" class="h-28 flex items-end justify-between gap-1 pt-4 pb-1 px-1">
-                        <!-- Batang tren otomatis dirender via JS -->
+                    <div id="analytics-chart" class="h-28 flex items-end justify-between gap-1 pt-4 pb-1 px-1"></div>
+                    <div id="analytics-chart-labels" class="flex justify-between text-[10px] text-gray-400 px-1 mt-1 border-t border-gray-200 pt-1"></div>
+                </div>
+
+                <!-- 3. Tabel Peringkat Produk Terpopuler (Top Performing Products) -->
+                <div class="mb-5 bg-gray-50 rounded-xl p-3.5 border border-gray-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">🔥 Produk Paling Diminati</span>
+                        <span class="text-[10px] text-gray-400">Total Klik</span>
                     </div>
-                    <div id="analytics-chart-labels" class="flex justify-between text-[10px] text-gray-400 px-1 mt-1 border-t border-gray-200 pt-1">
-                        <!-- Label tanggal otomatis dirender via JS -->
+                    <div id="top-products-list" class="space-y-2">
+                        <p class="text-gray-400 italic text-xs">Memuat data produk...</p>
                     </div>
                 </div>
 
-                <!-- 3. Tipe Perangkat & Sumber Referrer -->
-                <div class="grid grid-cols-2 gap-3 text-xs">
+                <!-- 4. Tipe Perangkat, Sumber Trafik, & Geolokasi -->
+                <div class="grid grid-cols-2 gap-3 text-xs mb-3">
                     <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
                         <span class="font-bold text-gray-700 block mb-2">Tipe Perangkat</span>
                         <div class="space-y-2">
@@ -170,6 +177,17 @@
                         <div id="referrers-list" class="space-y-1.5 text-[11px] text-gray-600">
                             <p class="text-gray-400 italic text-[10px]">Memuat data...</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 5. Persebaran Geolokasi (Kota / Negara Pengunjung) -->
+                <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-200 text-xs">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-gray-700 block">📍 Persebaran Kota Pengunjung</span>
+                        <span class="text-[10px] text-gray-400">Pengunjung</span>
+                    </div>
+                    <div id="locations-list" class="space-y-1.5 text-[11px] text-gray-600">
+                        <p class="text-gray-400 italic text-[10px]">Memuat lokasi...</p>
                     </div>
                 </div>
             </div>
@@ -302,7 +320,6 @@
                         <p class="text-xs text-gray-400 mt-1">Besaran diskon untuk pembeli: <span id="locked_discount_val" class="font-bold text-gray-600">30%</span> (Ditetapkan oleh sistem)</p>
                     </div>
 
-                    <!-- Card Statistik Real-Time -->
                     <div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100 mt-4">
                         <h3 class="text-xs font-bold text-purple-700 uppercase tracking-wider mb-3">Statistik & Komisi Bulan Ini</h3>
                         <div class="grid grid-cols-2 gap-3">
@@ -562,7 +579,33 @@
                 labelsEl.innerHTML = "";
             }
 
-            // 3. Render Device Breakdown
+            // 3. Render Top Performing Products
+            const topProducts = data.top_products || [];
+            const topListEl = document.getElementById("top-products-list");
+            if (topProducts.length > 0) {
+                const maxProductClicks = topProducts[0].total_clicks || 1;
+                topListEl.innerHTML = topProducts.map((p, idx) => {
+                    const pct = Math.round((p.total_clicks / maxProductClicks) * 100);
+                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+                    return `
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="font-semibold text-gray-800 truncate pr-2">
+                                    <span class="mr-1">${medal}</span> ${p.title}
+                                </span>
+                                <span class="font-extrabold text-pink-600">${p.total_clicks.toLocaleString("id-ID")} klik</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div class="bg-gradient-to-r from-pink-500 to-purple-600 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+            } else {
+                topListEl.innerHTML = `<p class="text-gray-400 italic text-xs">Belum ada klik produk dalam 7 hari terakhir.</p>`;
+            }
+
+            // 4. Render Device Breakdown
             const devices = data.devices || {};
             const mobileCount = devices.mobile || 0;
             const desktopCount = devices.desktop || 0;
@@ -577,7 +620,7 @@
             document.getElementById("bar-device-mobile").style.width = `${mobilePct}%`;
             document.getElementById("bar-device-desktop").style.width = `${desktopPct}%`;
 
-            // 4. Render Top Referrers
+            // 5. Render Top Referrers
             const referrers = data.referrers || {};
             const refList = document.getElementById("referrers-list");
             const refKeys = Object.keys(referrers);
@@ -588,8 +631,8 @@
                     let icon = "🌐";
                     if (k === "instagram") { label = "Instagram"; icon = "📸"; }
                     else if (k === "tiktok") { label = "TikTok"; icon = "🎵"; }
-                    else if (k === "google") { label = "Google Search"; icon = "🔍"; }
-                    else if (k === "direct") { label = "Direct / Link"; icon = "🔗"; }
+                    else if (k === "google") { label = "Google"; icon = "🔍"; }
+                    else if (k === "direct") { label = "Direct Link"; icon = "🔗"; }
 
                     return `
                         <div class="flex items-center justify-between">
@@ -600,6 +643,23 @@
                 }).join("");
             } else {
                 refList.innerHTML = `<p class="text-gray-400 italic text-[10px]">Belum ada trafik masuk</p>`;
+            }
+
+            // 6. Render Geolocation (Persebaran Kota & Negara)
+            const locations = data.locations || [];
+            const locListEl = document.getElementById("locations-list");
+            if (locations.length > 0) {
+                locListEl.innerHTML = locations.map(loc => {
+                    const countryFlag = loc.country === "ID" ? "🇮🇩" : loc.country === "SG" ? "🇸🇬" : loc.country === "MY" ? "🇲🇾" : "🌍";
+                    return `
+                        <div class="flex items-center justify-between">
+                            <span class="truncate pr-2">${countryFlag} ${loc.city} (${loc.country})</span>
+                            <span class="font-bold text-indigo-600">${loc.total.toLocaleString("id-ID")} view</span>
+                        </div>
+                    `;
+                }).join("");
+            } else {
+                locListEl.innerHTML = `<p class="text-gray-400 italic text-[10px]">Belum ada data geolokasi tercatat</p>`;
             }
         }
         
