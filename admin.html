@@ -66,6 +66,114 @@
         </div>
 
         <div class="max-w-md mx-auto p-4 space-y-6 pb-20">
+            <!-- SECTION 0: SISTEM ANALITIK 5-METRIK REAL-TIME -->
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-gray-800">Analitik Performa</h2>
+                            <p class="text-gray-500 text-xs">Statistik interaksi 7 hari terakhir</p>
+                        </div>
+                    </div>
+                    <button onclick="loadAnalytics(currentSlug)" title="Segarkan Data Analitik" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                        <svg id="analytics-refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                </div>
+
+                <!-- 1. Ringkasan Kartu 4 Metrik Utama -->
+                <div class="grid grid-cols-2 gap-3 mb-5">
+                    <div class="bg-gradient-to-br from-purple-50 to-indigo-50 p-3.5 rounded-xl border border-purple-100">
+                        <div class="flex items-center justify-between text-purple-600 mb-1">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Pageviews</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </div>
+                        <p id="metric-views" class="text-2xl font-extrabold text-gray-800">0</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Kunjungan toko</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-pink-50 to-rose-50 p-3.5 rounded-xl border border-pink-100">
+                        <div class="flex items-center justify-between text-pink-600 mb-1">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Klik Produk</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                        </div>
+                        <p id="metric-clicks" class="text-2xl font-extrabold text-gray-800">0</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Minat belanja</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-emerald-50 to-teal-50 p-3.5 rounded-xl border border-emerald-100">
+                        <div class="flex items-center justify-between text-emerald-600 mb-1">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Klik Sosmed</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        </div>
+                        <p id="metric-socials" class="text-2xl font-extrabold text-gray-800">0</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Chat & Follow</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-amber-50 to-orange-50 p-3.5 rounded-xl border border-amber-100">
+                        <div class="flex items-center justify-between text-amber-600 mb-1">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Rasio CTR</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        </div>
+                        <p id="metric-ctr" class="text-2xl font-extrabold text-gray-800">0%</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Konversi klik/view</p>
+                    </div>
+                </div>
+
+                <!-- 2. Tren Harian (7 Hari Terakhir) -->
+                <div class="mb-5 bg-gray-50 rounded-xl p-3.5 border border-gray-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">Tren Kunjungan & Klik (7 Hari)</span>
+                        <div class="flex items-center gap-3 text-[10px]">
+                            <span class="inline-flex items-center gap-1 text-purple-600 font-semibold"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Views</span>
+                            <span class="inline-flex items-center gap-1 text-pink-600 font-semibold"><span class="w-2 h-2 rounded-full bg-pink-500"></span> Klik</span>
+                        </div>
+                    </div>
+                    <div id="analytics-chart" class="h-28 flex items-end justify-between gap-1 pt-4 pb-1 px-1">
+                        <!-- Batang tren otomatis dirender via JS -->
+                    </div>
+                    <div id="analytics-chart-labels" class="flex justify-between text-[10px] text-gray-400 px-1 mt-1 border-t border-gray-200 pt-1">
+                        <!-- Label tanggal otomatis dirender via JS -->
+                    </div>
+                </div>
+
+                <!-- 3. Tipe Perangkat & Sumber Referrer -->
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                        <span class="font-bold text-gray-700 block mb-2">Tipe Perangkat</span>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex justify-between text-[11px] text-gray-600 mb-0.5">
+                                    <span>📱 Mobile</span>
+                                    <span id="metric-device-mobile" class="font-bold">0</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                    <div id="bar-device-mobile" class="bg-purple-500 h-1.5 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] text-gray-600 mb-0.5">
+                                    <span>💻 Desktop</span>
+                                    <span id="metric-device-desktop" class="font-bold">0</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                    <div id="bar-device-desktop" class="bg-indigo-500 h-1.5 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                        <span class="font-bold text-gray-700 block mb-2">Sumber Trafik</span>
+                        <div id="referrers-list" class="space-y-1.5 text-[11px] text-gray-600">
+                            <p class="text-gray-400 italic text-[10px]">Memuat data...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 1: Hero & Profile Editor -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
                 <div class="flex items-center gap-3 mb-6">
@@ -237,6 +345,7 @@
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         const SB_BUCKET = "public-assets";
+        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
         
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
         
@@ -290,14 +399,12 @@
             }
         }
         
-        // Mengekstrak nama file murni tanpa path bucket
         function extractPathFromUrl(url) {
             if (!url) return null;
             const match = url.match(/\/public-assets\/([^?]+)/);
             return match ? decodeURIComponent(match[1]) : null;
         }
 
-        // Kompresi foto sisi klien ke format JPEG 800px untuk memangkas storage dan LCP
         function compressImage(file, maxWidth = 800, quality = 0.75) {
             return new Promise((resolve) => {
                 if (!file.type.startsWith('image/')) {
@@ -335,7 +442,6 @@
             });
         }
         
-        // Membersihkan file lama di Supabase Storage berdasarkan prefix file
         async function cleanupOldStorageFiles(prefix) {
             try {
                 const { data: files, error } = await sbClient.storage.from(SB_BUCKET).list('', {
@@ -357,7 +463,6 @@
             }
         }
         
-        // Menghapus file fisik dari storage secara spesifik berdasarkan URL
         async function deleteImage(url) {
             try {
                 const path = extractPathFromUrl(url);
@@ -369,7 +474,6 @@
             }
         }
         
-        // Mengunggah file setelah dikompresi dan membersihkan file lama yang sejenis
         async function uploadImage(file, filePrefix) {
             const optimizedFile = await compressImage(file, 800, 0.75);
             await cleanupOldStorageFiles(filePrefix);
@@ -384,6 +488,119 @@
             if (error) throw error;
             const { data: urlData } = sbClient.storage.from(SB_BUCKET).getPublicUrl(data.path);
             return urlData.publicUrl;
+        }
+
+        // ==========================================
+        // SISTEM ENGINE ANALITIK REAL-TIME (7 HARI)
+        // ==========================================
+        async function loadAnalytics(slug) {
+            const refreshIcon = document.getElementById("analytics-refresh-icon");
+            if (refreshIcon) refreshIcon.classList.add("animate-spin");
+
+            try {
+                const res = await fetch(`${WORKER_ORIGIN}/api/admin/analytics?clientSlug=${encodeURIComponent(slug)}`, {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" }
+                });
+
+                if (!res.ok) throw new Error("Gagal mengambil data analitik dari server");
+
+                const data = await res.json();
+                renderAnalytics(data);
+            } catch (err) {
+                console.error("Gagal memuat analitik:", err);
+            } finally {
+                if (refreshIcon) {
+                    setTimeout(() => refreshIcon.classList.remove("animate-spin"), 400);
+                }
+            }
+        }
+
+        function renderAnalytics(data) {
+            if (!data) return;
+
+            // 1. Render Summary Cards
+            const s = data.summary || {};
+            document.getElementById("metric-views").textContent = (s.views || 0).toLocaleString("id-ID");
+            document.getElementById("metric-clicks").textContent = (s.product_clicks || 0).toLocaleString("id-ID");
+            document.getElementById("metric-socials").textContent = (s.social_clicks || 0).toLocaleString("id-ID");
+            document.getElementById("metric-ctr").textContent = `${s.ctr || 0}%`;
+
+            // 2. Render 7-Day Interactive Trend Bar Chart
+            const chartEl = document.getElementById("analytics-chart");
+            const labelsEl = document.getElementById("analytics-chart-labels");
+            const trends = data.trends || [];
+
+            if (trends.length > 0) {
+                let maxVal = 1;
+                trends.forEach(t => {
+                    if (t.views > maxVal) maxVal = t.views;
+                    if (t.clicks > maxVal) maxVal = t.clicks;
+                });
+
+                chartEl.innerHTML = trends.map(t => {
+                    const viewHeight = Math.max(Math.round((t.views / maxVal) * 100), 4);
+                    const clickHeight = Math.max(Math.round((t.clicks / maxVal) * 100), 4);
+                    return `
+                        <div class="flex-1 flex items-end justify-center gap-0.5 h-full group relative cursor-pointer">
+                            <div class="w-full max-w-[12px] bg-purple-500 rounded-t transition-all group-hover:bg-purple-600" style="height: ${viewHeight}%" title="Views: ${t.views}"></div>
+                            <div class="w-full max-w-[12px] bg-pink-500 rounded-t transition-all group-hover:bg-pink-600" style="height: ${clickHeight}%" title="Clicks: ${t.clicks}"></div>
+                            <div class="absolute -top-7 hidden group-hover:flex bg-gray-900 text-white text-[9px] px-1.5 py-0.5 rounded shadow whitespace-nowrap z-20">
+                                V:${t.views} | C:${t.clicks}
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+
+                labelsEl.innerHTML = trends.map(t => {
+                    const parts = t.date_str.split("-");
+                    const shortDate = `${parts[2]}/${parts[1]}`;
+                    return `<span class="flex-1 text-center truncate">${shortDate}</span>`;
+                }).join("");
+            } else {
+                chartEl.innerHTML = `<p class="w-full text-center text-gray-400 text-xs my-auto">Belum ada aktivitas 7 hari terakhir.</p>`;
+                labelsEl.innerHTML = "";
+            }
+
+            // 3. Render Device Breakdown
+            const devices = data.devices || {};
+            const mobileCount = devices.mobile || 0;
+            const desktopCount = devices.desktop || 0;
+            const totalDevices = mobileCount + desktopCount;
+
+            document.getElementById("metric-device-mobile").textContent = mobileCount.toLocaleString("id-ID");
+            document.getElementById("metric-device-desktop").textContent = desktopCount.toLocaleString("id-ID");
+
+            const mobilePct = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
+            const desktopPct = totalDevices > 0 ? Math.round((desktopCount / totalDevices) * 100) : 0;
+
+            document.getElementById("bar-device-mobile").style.width = `${mobilePct}%`;
+            document.getElementById("bar-device-desktop").style.width = `${desktopPct}%`;
+
+            // 4. Render Top Referrers
+            const referrers = data.referrers || {};
+            const refList = document.getElementById("referrers-list");
+            const refKeys = Object.keys(referrers);
+
+            if (refKeys.length > 0) {
+                refList.innerHTML = refKeys.map(k => {
+                    let label = k;
+                    let icon = "🌐";
+                    if (k === "instagram") { label = "Instagram"; icon = "📸"; }
+                    else if (k === "tiktok") { label = "TikTok"; icon = "🎵"; }
+                    else if (k === "google") { label = "Google Search"; icon = "🔍"; }
+                    else if (k === "direct") { label = "Direct / Link"; icon = "🔗"; }
+
+                    return `
+                        <div class="flex items-center justify-between">
+                            <span class="truncate pr-1">${icon} ${label}</span>
+                            <span class="font-bold text-gray-800">${referrers[k]}</span>
+                        </div>
+                    `;
+                }).join("");
+            } else {
+                refList.innerHTML = `<p class="text-gray-400 italic text-[10px]">Belum ada trafik masuk</p>`;
+            }
         }
         
         function createProductCard(product, index) {
@@ -529,7 +746,10 @@
                 productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
             }
 
-            await checkInfluencerStatus(slug);
+            await Promise.all([
+                checkInfluencerStatus(slug),
+                loadAnalytics(slug)
+            ]);
         }
         
         function populateForm() {
@@ -633,7 +853,6 @@
                 let profileImageUrl = originalSettings.profile_image_url || "";
                 let backgroundUrl = originalSettings.background_url || "";
                 
-                // Pembaruan foto profil & penghapusan otomatis foto lama
                 const profileInput = document.getElementById("profile_image");
                 if (profileInput.files[0]) {
                     if (originalSettings.profile_image_url) {
@@ -642,7 +861,6 @@
                     profileImageUrl = await uploadImage(profileInput.files[0], `profile_${currentSlug}`);
                 }
                 
-                // Pembaruan background hero & penghapusan otomatis background lama
                 const bgInput = document.getElementById("hero_background");
                 if (bgInput.files[0]) {
                     if (originalSettings.background_url) {
@@ -694,7 +912,6 @@
                     const imgInput = document.getElementById(`img_${i}`);
                     const originalImg = document.getElementById(`original_img_${i}`).value;
                     
-                    // Jika slot produk dikosongkan, hapus data di database dan file gambar di storage
                     if (!title && !link && !price && !imgInput.files[0]) {
                         const existingInDb = originalProducts.find(p => p.sort_order === sortOrder);
                         if (existingInDb && existingInDb.id) {
@@ -706,7 +923,6 @@
                     }
                     
                     let imageUrl = originalImg;
-                    // Jika ada upload gambar baru, hapus gambar lama lalu upload gambar terkompresi
                     if (imgInput.files[0]) {
                         if (originalImg) {
                             await deleteImage(originalImg);
