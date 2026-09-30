@@ -1,0 +1,25 @@
+# ⚠️  JANGAN DI-DEPLOY — hanya untuk `wrangler dev` (lokal).
+# Folder ini terpisah dari worker/ supaya kode produksi (worker/worker.js)
+# tidak tersentuh sama sekali.
+name = "customlink-diagnose-local"
+main = "worker-diagnose.mjs"
+compatibility_date = "2026-09-26"
+workers_dev = false
+
+# ---------------------------------------------------------------------------
+# Variabel publik (nilai sama dengan worker/wrangler.toml) supaya preview
+# dry-run mencerminkan produksi. Rahasia DIAMBIL DARI .dev.vars.
+# ---------------------------------------------------------------------------
+[vars]
+DANA_ENV = "sandbox"
+MERCHANT_ID = "216620090026052421673"
+CLIENT_ID = "2026092618040865582354"
+DANA_ORIGIN = "https://customlink.pages.dev"
+# External Division ID (dashboard.dana.id/sandbox/submerchants -> tab "Division").
+# Inilah nilai yang benar untuk subMerchantId (worker.js versi baru tidak lagi
+# memakai fallback hardcoded External Shop ID "216660000003605019003").
+SUB_MERCHANT_ID = "d5831d89"
+# CHANNEL-ID wajib 1-5 karakter (spec SNAP).
+DANA_CHANNEL_ID = "95221"
+# DANA_MCC = "5734"
+# EXTERNAL_STORE_ID = "7b7c6a5f"   # External Shop ID (opsional)

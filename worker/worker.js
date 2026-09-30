@@ -1,14 +1,29 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics
 // Route:
 //   OPTIONS /api/*              -> CORS preflight
 //   POST    /api/create-payment -> Buat transaksi pembayaran (SNAP createOrder)
 //   POST    /api/webhook/gapura -> Auto-aktivasi klien setelah pembayaran sukses
+//   POST    /api/track          -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
+//   GET     /api/admin/analytics-> Penarikan ringkasan data analitik 7 hari untuk admin
 //   GET     /*                  -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
+//
+// ---------------------------------------------------------------------------
+// Konfigurasi DANA (env) — lihat worker/wrangler.toml [vars] + wrangler secret:
+//   MERCHANT_ID        : Merchant ID dari dashboard.dana.id (sandbox != production)
+//   CLIENT_ID          : X-PARTNER-ID dari dashboard.dana.id
+//   DANA_PRIVATE_KEY   : (secret) RSA PKCS#8 PEM untuk X-SIGNATURE
+//   DANA_ENV           : "sandbox" (api.sandbox.dana.id) | "production" (api.saas.dana.id)
+//   DANA_ORIGIN        : origin aplikasi yang terdaftar (JANGAN origin *.workers.dev)
+//   SUB_MERCHANT_ID    : External DIVISION ID (tab "Division"), BUKAN External Shop ID!
+//                        Kosongkan bila transaksi tidak memakai skema Division.
+//   EXTERNAL_STORE_ID  : External Shop ID (opsional, tab "Shop")
+//   DANA_CHANNEL_ID    : CHANNEL-ID 1-5 karakter (nilai dashboard DANA: 95221)
+// ---------------------------------------------------------------------------
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Max-Age": "86400"
 };
 
@@ -22,6 +37,9 @@ const DANA_CREATE_ORDER_PATH = "/payment-gateway/v1.0/debit/payment-host-to-host
 const REDIRECT_URL = "https://customlink.pages.dev/";
 const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webhook/gapura";
 const PAGES_ORIGIN = "https://customlink.pages.dev";
+// CHANNEL-ID: spesifikasi SNAP mewajibkan 1-5 karakter. Nilai contoh dari dashboard DANA
+// (Sample Payload) untuk akun ini adalah 95221; bisa dioverride lewat env DANA_CHANNEL_ID.
+const DEFAULT_CHANNEL_ID = "95221";
 const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 
 function jsonResponse(payload, status = 200) {
@@ -53,11 +71,13 @@ function extractGatewayMessage(data) {
 }
 
 // --- SNAP Helpers ---
+// Spesifikasi DANA: X-TIMESTAMP = "YYYY-MM-DDTHH:mm:ss+07:00" (GMT+7 / waktu Jakarta, tepat 25 karakter).
+// Nilai ini juga masuk ke stringToSign X-SIGNATURE, jadi header dan signature wajib memakai nilai yang sama.
 function snapTimestamp() {
-  const d = new Date();
+  const d = new Date(Date.now() + 7 * 60 * 60 * 1000);
   const p = (n) => String(n).padStart(2, "0");
   return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate()) +
-    "T" + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds()) + "+00:00";
+    "T" + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds()) + "+07:00";
 }
 
 function snapValidUpTo() {
@@ -74,6 +94,15 @@ function randomExternalId() {
   let s = "";
   for (const b of buf) s += hex[b >> 4] + hex[b & 15];
   return "sdk" + s.substring(3, 31);
+}
+
+// CHANNEL-ID wajib 1-5 karakter (spec DANA: "Device identification ... 1 - 5 characters").
+// Nilai yang lebih panjang diabaikan supaya DANA tidak menolak request karena format.
+function resolveChannelId(env) {
+  const raw = String((env && env.DANA_CHANNEL_ID) || "").trim();
+  if (raw && raw.length <= 5) return raw;
+  if (raw) console.warn("[DANA] DANA_CHANNEL_ID diabaikan: " + raw.length + " karakter (wajib 1-5).");
+  return DEFAULT_CHANNEL_ID;
 }
 
 function normalizePrivateKeyPem(raw) {
@@ -146,16 +175,16 @@ async function handleCreatePayment(request, env) {
 
   const danaEnv = String(env.DANA_ENV || "sandbox").toLowerCase() === "production" ? "production" : "sandbox";
   const danaBaseUrl = DANA_HOSTS[danaEnv];
-  const origin = new URL(request.url).origin;
+  const origin = String(env.DANA_ORIGIN || PAGES_ORIGIN).trim().replace(/\/+$/, "") || PAGES_ORIGIN;
 
   const orderId = "ORDER-" + Date.now();
   const amountStr = String(Math.round(amount)) + ".00";
-  const subMerchantId = env.SUB_MERCHANT_ID || "216660000003605019003";
+  const subMerchantId = String(env.SUB_MERCHANT_ID || "").trim();
+  const externalStoreId = String(env.EXTERNAL_STORE_ID || "").trim();
 
   const danaBody = {
     partnerReferenceNo: orderId,
     merchantId: merchantId,
-    subMerchantId: subMerchantId,
     amount: { value: amountStr, currency: "IDR" },
     validUpTo: snapValidUpTo(),
     urlParams: [
@@ -168,6 +197,9 @@ async function handleCreatePayment(request, env) {
       order: { orderTitle: ('CustomLink ' + String(packageName || 'Package')).slice(0, 32), scenario: 'REDIRECT' } 
     }
   };
+  if (subMerchantId) danaBody.subMerchantId = subMerchantId;
+  if (externalStoreId) danaBody.externalStoreId = externalStoreId;
+
   const requestBodyStr = JSON.stringify(danaBody);
   const timestamp = snapTimestamp();
   const externalId = randomExternalId();
@@ -189,7 +221,7 @@ async function handleCreatePayment(request, env) {
     "ORIGIN": origin,
     "X-PARTNER-ID": partnerId,
     "X-EXTERNAL-ID": externalId,
-    "CHANNEL-ID": partnerId + "-SERVER",
+    "CHANNEL-ID": resolveChannelId(env),
   };
   if (danaEnv === "sandbox") snapHeaders["X-Debug-Mode"] = "true";
 
@@ -214,21 +246,52 @@ async function handleCreatePayment(request, env) {
 
   if (!gatewayResponse.ok) {
     const gwMsg = extractGatewayMessage(gatewayData);
+    const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
+    const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
+    console.error("[DANA create-payment] ditolak", JSON.stringify({
+      httpStatus: gatewayResponse.status,
+      responseCode: gwCode || null,
+      responseMessage: gwMsg || null,
+      debugMessage: gwDebug || null,
+      orderId: orderId,
+      externalId: externalId,
+      origin: origin,
+      channelId: snapHeaders["CHANNEL-ID"],
+      subMerchantId: subMerchantId || null,
+      externalStoreId: externalStoreId || null
+    }));
+    const rejectStatus = gatewayResponse.status >= 400 && gatewayResponse.status < 500 ? gatewayResponse.status : 502;
     return jsonResponse({
       success: false,
+      orderId: orderId,
+      responseCode: gwCode || null,
+      debugMessage: gwDebug || null,
       message: "API gateway pembayaran DANA menolak permintaan (HTTP " + gatewayResponse.status + (gwMsg ? " - " + gwMsg : "") + ").",
       detail: gatewayData
-    }, 502);
+    }, rejectStatus);
   }
 
   const paymentUrl = extractPaymentUrl(gatewayData);
   if (!paymentUrl) {
+    const gwMsg = extractGatewayMessage(gatewayData);
+    const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
+    const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
+    console.error("[DANA create-payment] tanpa webRedirectUrl", JSON.stringify({
+      httpStatus: gatewayResponse.status, responseCode: gwCode || null, debugMessage: gwDebug || null,
+      orderId: orderId, body: String(rawText || "").slice(0, 600)
+    }));
     return jsonResponse({
       success: false,
-      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran."
+      orderId: orderId,
+      responseCode: gwCode || null,
+      debugMessage: gwDebug || null,
+      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran." + (gwMsg ? " (" + gwMsg + ")" : ""),
+      detail: gatewayData
     }, 502);
   }
 
+  console.log("[DANA create-payment] sukses " + orderId + " subMerchantId=" + (subMerchantId || "-") +
+    " origin=" + origin + " channelId=" + snapHeaders["CHANNEL-ID"]);
   return jsonResponse({ success: true, orderId: orderId, paymentUrl: paymentUrl, danaResponse: gatewayData }, 200);
 }
 
@@ -285,6 +348,94 @@ async function handleGapuraWebhook(request, env) {
     return jsonResponse({ status: "OK", message: "Akun berhasil diaktifkan secara otomatis", slug: clientSlug }, 200);
   } catch (err) {
     return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook: " + (err && err.message) }, 500);
+  }
+}
+
+// --- Handler: POST /api/track (Analytics Ingestion Non-blocking) ---
+async function handleTrack(request, env, ctx) {
+  // 1. Tangkal Bot, Crawler, dan Mesin Pencari
+  const ua = request.headers.get("user-agent") || "";
+  if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) {
+    return new Response(null, { status: 204 });
+  }
+
+  try {
+    const body = await request.json();
+    const clientSlug = (body.clientSlug || body.slug || "default").trim();
+    const eventType = body.eventType || "view"; // 'view', 'product_click', 'social_click'
+    const targetId = String(body.targetId || "").trim();
+
+    // 2. Deteksi Perangkat Otomatis via Cloudflare Header
+    const cfDevice = (request.headers.get("cf-device-type") || "desktop").toLowerCase();
+    const deviceType = (cfDevice === "mobile" || cfDevice === "tablet") ? "mobile" : "desktop";
+
+    // 3. Normalisasi Referrer Domain
+    let rawRef = (body.referrer || "direct").toLowerCase();
+    let referrer = "direct";
+    if (rawRef.includes("instagram.com")) referrer = "instagram";
+    else if (rawRef.includes("tiktok.com")) referrer = "tiktok";
+    else if (rawRef.includes("google.")) referrer = "google";
+    else if (rawRef.includes("facebook.com")) referrer = "facebook";
+    else if (rawRef !== "direct" && rawRef !== "") referrer = "other";
+
+    // 4. Eksekusi RPC ke Supabase di background tanpa menahan response
+    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+    const task = fetch(`${SUPABASE_URL}/rest/v1/rpc/record_analytics_event`, {
+      method: "POST",
+      headers: {
+        "apikey": sbKey,
+        "Authorization": `Bearer ${sbKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_client_slug: clientSlug,
+        p_event_type: eventType,
+        p_device_type: deviceType,
+        p_referrer: referrer,
+        p_target_id: targetId
+      })
+    }).catch((err) => console.error("[Analytics Error]", err));
+
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(task);
+    }
+
+    return jsonResponse({ success: true }, 200);
+  } catch (err) {
+    return jsonResponse({ error: "Invalid Payload" }, 400);
+  }
+}
+
+// --- Handler: GET /api/admin/analytics (Ringkasan Data Analitik 7 Hari) ---
+async function handleAdminAnalytics(request, env) {
+  const url = new URL(request.url);
+  const clientSlug = (url.searchParams.get("clientSlug") || url.searchParams.get("slug") || "default").trim();
+
+  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+  if (!sbKey) {
+    return jsonResponse({ error: "Konfigurasi Supabase belum lengkap." }, 500);
+  }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_analytics_summary_7d`, {
+      method: "POST",
+      headers: {
+        "apikey": sbKey,
+        "Authorization": `Bearer ${sbKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p_client_slug: clientSlug })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return jsonResponse({ error: "Gagal mengambil data analitik: " + errText }, res.status);
+    }
+
+    const data = await res.json();
+    return jsonResponse(data, 200);
+  } catch (err) {
+    return jsonResponse({ error: "Kesalahan internal analitik: " + (err && err.message) }, 500);
   }
 }
 
@@ -377,7 +528,7 @@ async function handlePageRender(request, env) {
 
 // --- Router Utama ---
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // 1. CORS Preflight
@@ -392,6 +543,14 @@ export default {
 
     if (url.pathname === "/api/webhook/gapura" && request.method === "POST") {
       return handleGapuraWebhook(request, env);
+    }
+
+    if (url.pathname === "/api/track" && request.method === "POST") {
+      return handleTrack(request, env, ctx);
+    }
+
+    if (url.pathname === "/api/admin/analytics" && request.method === "GET") {
+      return handleAdminAnalytics(request, env);
     }
 
     // 3. Routing Halaman Frontend & Dynamic SEO Rewriter

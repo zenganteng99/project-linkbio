@@ -1,2 +1,19 @@
 node_modules/
 .wrangler/
+
+# ---------------------------------------------------------------------------
+# RAHASIA — JANGAN PERNAH DI-COMMIT
+# (kunci RSA private DANA PKCS#8, service role key Supabase, dsb.)
+# ---------------------------------------------------------------------------
+.dev.vars
+.env
+.env.local
+env.local
+secrets/
+*.pem
+*.key
+
+# Hasil diagnosa pembayaran (memuat X-EXTERNAL-ID & isi respons DANA)
+diag-hasil.json
+_diag-*.txt
+*.log

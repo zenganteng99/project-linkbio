@@ -16,11 +16,27 @@ CLIENT_ID = "2026092618040865582354"
 # DANA: "sandbox" -> api.sandbox.dana.id, "production" -> api.saas.dana.id
 DANA_ENV = "sandbox"
 
+# ORIGIN yang dikirim ke DANA = domain aplikasi yang terdaftar (BUKAN origin *.workers.dev).
+DANA_ORIGIN = "https://customlink.pages.dev"
+
+# External Division ID (dashboard.dana.id/sandbox/submerchants -> tab "Division"), contoh: d5831d89.
+# WAJIB berisi External Division ID, bukan Shop ID / Division ID internal, kalau tidak DANA
+# membalas 4045408 Invalid Merchant + debugMessage "DIVISION_NOT_EXIST:division not exist".
+# Hapus/komentari baris ini bila transaksi tidak memakai skema Division (field tidak akan dikirim).
+SUB_MERCHANT_ID = "d5831d89"
+
+# External Shop ID (tab "Shop") — opsional, hanya dikirim bila diisi.
+# EXTERNAL_STORE_ID = "7b7c6a5f"
+
+# CHANNEL-ID wajib 1-5 karakter (spec SNAP). Nilai contoh dari dashboard DANA = 95221.
+DANA_CHANNEL_ID = "95221"
+
 # ---------------------------------------------------------------------------
 # VARIABEL RAHASIA — JANGAN ditaruh di file ini. Set dari terminal:
 #   wrangler secret put DANA_PRIVATE_KEY           (wajib: RSA private key PEM PKCS#8 untuk X-SIGNATURE)
 #   wrangler secret put SUPABASE_SERVICE_ROLE_KEY  (wajib: untuk auto-aktivasi klien di webhook)
-#   wrangler secret put DANA_ORIGIN                (opsional: default https://customlink.pages.dev)
+#   (DANA_ORIGIN, SUB_MERCHANT_ID, EXTERNAL_STORE_ID, DANA_CHANNEL_ID sudah ada di [vars] di atas;
+#    override sebagai secret hanya bila nilainya berbeda antar environment.)
 #   (nanti: DANA_PUBLIC_KEY untuk verifikasi webhook)
 # CLIENT_SECRET lama sudah TIDAK dipakai (auth SNAP memakai X-SIGNATURE, bukan X-Client-Secret).
 #

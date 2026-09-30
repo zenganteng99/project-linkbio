@@ -1,0 +1,24 @@
+# Salin file ini menjadi ".dev.vars" (JANGAN di-commit) untuk dipakai `wrangler dev`.
+#
+# Tips: normalizePrivateKeyPem() di worker/worker.js (dan di tool ini) menerima
+# isi PKCS#8 TANPA header, jadi Anda cukup menempelkan base64 satu baris:
+#
+#   DANA_PRIVATE_KEY="MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ..."
+#
+# Kalau lebih suka PEM penuh, gunakan escape \n:
+#
+#   DANA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQ...\n-----END PRIVATE KEY-----"
+
+DANA_PRIVATE_KEY="TEMPEL_BASE64_PKCS8_ANDA_DI_SINI"
+
+# Opsional (dipakai hanya oleh /api/webhook/gapura, bukan oleh create-payment)
+SUPABASE_SERVICE_ROLE_KEY=""
+
+# CHANNEL-ID wajib 1-5 karakter (spec SNAP). Nilai Sample Payload dashboard DANA = 95221.
+DANA_CHANNEL_ID="95221"
+
+# External Division ID (dashboard.dana.id/sandbox/submerchants -> tab Division).
+SUB_MERCHANT_ID="d5831d89"
+
+# External Shop ID (tab Shop) — opsional, dikirim sebagai externalStoreId bila diisi.
+# EXTERNAL_STORE_ID="7b7c6a5f"
