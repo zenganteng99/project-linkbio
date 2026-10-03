@@ -485,12 +485,10 @@
     <script>
         AOS.init({ once: true, offset: 80, duration: 800 });
 
-        const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
-        const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
 
         let currentBasePrice = 0;
-        let appliedDiscountPercent = 0; // 0, 30, atau 100
+        let appliedDiscountPercent = 0;
         let isEndorseSuccess = false;
         let activeEndorseCode = "";
 
@@ -524,7 +522,7 @@
             setTimeout(() => { modal.classList.add('hidden'); }, 300);
         }
 
-        // --- VALIDASI VOUCHER SESUAI ATURAN ---
+        // --- VALIDASI VOUCHER AMAN VIA SERVER WORKER (Mencegah scraping voucher/rekening) ---
         async function applyCoupon() {
             const code = document.getElementById('couponInput').value.trim().toLowerCase();
             const feedback = document.getElementById('couponFeedback');
@@ -542,65 +540,46 @@
             feedback.className = 'text-[11px] mt-1 text-yellow-400';
 
             try {
-                // 1. Cek apakah ini Voucher Endorse 100% di tabel endorse_vouchers
-                const { data: endorseData, error: endorseErr } = await sbClient
-                    .from('endorse_vouchers')
-                    .select('*')
-                    .ilike('endorse_code', code)
-                    .single();
+                const response = await fetch(`${WORKER_ORIGIN}/api/check-voucher`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
 
-                if (endorseData) {
-                    if (endorseData.is_used) {
-                        appliedDiscountPercent = 0;
-                        feedback.innerText = '❌ Voucher endorse ini sudah pernah digunakan!';
-                        feedback.className = 'text-[11px] mt-1 text-red-400';
-                        document.getElementById('discountRow').classList.add('hidden');
-                        updatePriceDisplay();
-                        return;
+                const result = await response.json();
+
+                if (result.valid === true) {
+                    if (result.type === 'endorse') {
+                        appliedDiscountPercent = 100;
+                        isEndorseSuccess = true;
+                        activeEndorseCode = result.code || code;
+                        feedback.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Voucher Endorse Berhasil! Diskon 100% (GRATIS).';
+                        feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
+                        document.getElementById('discountLabel').innerText = 'Diskon Endorse (100%):';
+                        document.getElementById('discountRow').classList.remove('hidden');
+                    } else if (result.type === 'influencer') {
+                        appliedDiscountPercent = result.discount_percent || 30;
+                        isEndorseSuccess = false;
+                        activeEndorseCode = '';
+                        feedback.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Voucher Berhasil! Diskon ${appliedDiscountPercent}% diterapkan.`;
+                        feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
+                        document.getElementById('discountLabel').innerText = `Diskon Voucher (${appliedDiscountPercent}%):`;
+                        document.getElementById('discountRow').classList.remove('hidden');
                     }
-                    // Voucher Endorse Valid -> Diskon 100%
-                    appliedDiscountPercent = 100;
-                    isEndorseSuccess = true;
-                    activeEndorseCode = endorseData.endorse_code;
-                    feedback.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Voucher Endorse Berhasil! Diskon 100% (GRATIS).';
-                    feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
-                    document.getElementById('discountLabel').innerText = 'Diskon Endorse (100%):';
-                    document.getElementById('discountRow').classList.remove('hidden');
-                    updatePriceDisplay();
-                    return;
-                }
-
-                // 2. Cek apakah ini Voucher Afiliasi Influencer Publik di tabel influencers (Diskon 30%)
-                const { data: infData, error: infErr } = await sbClient
-                    .from('influencers')
-                    .select('*')
-                    .ilike('voucher_code', code)
-                    .single();
-
-                if (infData) {
-                    appliedDiscountPercent = infData.discount_percent || 30;
+                } else {
+                    appliedDiscountPercent = 0;
                     isEndorseSuccess = false;
-                    feedback.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Voucher Berhasil! Diskon ${appliedDiscountPercent}% diterapkan.`;
-                    feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
-                    document.getElementById('discountLabel').innerText = `Diskon Voucher (${appliedDiscountPercent}%):`;
-                    document.getElementById('discountRow').classList.remove('hidden');
-                    updatePriceDisplay();
-                    return;
+                    activeEndorseCode = '';
+                    feedback.innerText = result.message || '❌ Kode voucher tidak valid. Diskon 0%.';
+                    feedback.className = 'text-[11px] mt-1 text-red-400 font-semibold';
+                    document.getElementById('discountRow').classList.add('hidden');
                 }
-
-                // 3. Jika kode diisi asal / salah -> Diskon 0%
-                appliedDiscountPercent = 0;
-                isEndorseSuccess = false;
-                feedback.innerText = '❌ Kode voucher salah atau tidak ditemukan. Diskon 0%.';
-                feedback.className = 'text-[11px] mt-1 text-red-400 font-semibold';
-                document.getElementById('discountRow').classList.add('hidden');
                 updatePriceDisplay();
-
             } catch (err) {
-                // Jika error query / tidak ketemu -> Diskon 0%
                 appliedDiscountPercent = 0;
                 isEndorseSuccess = false;
-                feedback.innerText = '❌ Kode voucher tidak valid. Diskon 0%.';
+                activeEndorseCode = '';
+                feedback.innerText = '❌ Gagal memeriksa voucher di server. Coba lagi.';
                 feedback.className = 'text-[11px] mt-1 text-red-400 font-semibold';
                 document.getElementById('discountRow').classList.add('hidden');
                 updatePriceDisplay();
@@ -624,7 +603,7 @@
         }
 
         // --- PROSES CHECKOUT & POPUP INFLUENCER ---
-        const PAYMENT_ENDPOINT = 'https://customlink-webhook.modernshopp.workers.dev/api/create-payment';
+        const PAYMENT_ENDPOINT = `${WORKER_ORIGIN}/api/create-payment`;
 
         async function processFinalCheckout(event) {
             if (event) event.preventDefault();
@@ -647,7 +626,7 @@
                 return;
             }
 
-            // JIKA PEMBAYARAN NORMAL (Via Payment Gateway Worker)
+            // JIKA PEMBAYARAN NORMAL (Via Payment Gateway DANA Worker)
             const modalPayButton = document.getElementById('modalPayButton');
             modalPayButton.disabled = true;
             modalPayButton.innerText = 'Memproses pembayaran...';
@@ -674,7 +653,7 @@
             }
         }
 
-        // --- MENYIMPAN DATA INFLUENCER KE SUPABASE & KUNCI VENDORSE ---
+        // --- MENYIMPAN DATA INFLUENCER SECARA AMAN VIA WORKER ---
         async function submitInfluencerData() {
             const slug = document.getElementById('inf_slug').value.trim().toLowerCase();
             const voucher = document.getElementById('inf_voucher').value.trim().toUpperCase();
@@ -689,30 +668,32 @@
             }
 
             try {
-                const { error: insErr } = await sbClient.from('influencers').insert([{
-                    client_slug: slug,
-                    voucher_code: voucher,
-                    discount_percent: 30,
-                    whatsapp: whatsapp,
-                    bank_name: bankName,
-                    bank_account: bankAcc,
-                    bank_holder: bankHolder
-                }]);
+                const response = await fetch(`${WORKER_ORIGIN}/api/register-influencer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        slug: slug,
+                        voucher: voucher,
+                        whatsapp: whatsapp,
+                        bankName: bankName,
+                        bankAccount: bankAcc,
+                        bankHolder: bankHolder,
+                        endorseCode: activeEndorseCode
+                    })
+                });
 
-                if (insErr) throw insErr;
+                const result = await response.json();
 
-                const { error: updErr } = await sbClient.from('endorse_vouchers')
-                    .update({ is_used: true })
-                    .eq('endorse_code', activeEndorseCode);
-
-                if (updErr) throw updErr;
-
-                alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
-                document.getElementById('influencerModal').classList.add('hidden');
-                window.location.href = `admin.html?slug=${slug}`;
+                if (result.success === true) {
+                    alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
+                    document.getElementById('influencerModal').classList.add('hidden');
+                    window.location.href = `admin.html?slug=${slug}`;
+                } else {
+                    alert('Gagal aktivasi: ' + (result.message || 'Silakan coba lagi.'));
+                }
             } catch (err) {
                 console.error(err);
-                alert('Gagal menyimpan data. Pastikan Client Slug belum digunakan orang lain.');
+                alert('Gagal menghubungi server. Pastikan koneksi internet stabil.');
             }
         }
     </script>
