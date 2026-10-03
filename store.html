@@ -58,7 +58,7 @@
             <div class="text-center mb-8 text-white">
                 <div class="relative mx-auto w-32 h-32 mb-4 p-1 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 avatar-glow">
                     <div id="profile-image" class="w-full h-full rounded-full border-2 border-white/80 bg-gray-900 bg-cover bg-center flex items-center justify-center text-3xl overflow-hidden">
-                        👤
+                        👑
                     </div>
                 </div>
                 <h1 id="profile-name" class="text-2xl font-extrabold tracking-tight drop-shadow-md"></h1>
@@ -96,7 +96,10 @@
     </main>
 
     <script>
-        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
+        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
+            ? window.location.origin 
+            : "https://customlink-webhook.modernshopp.workers.dev";
+            
         const TRACK_ENDPOINT = `${WORKER_ORIGIN}/api/track`;
         const STORE_ENDPOINT = `${WORKER_ORIGIN}/api/public/store`;
 
@@ -347,8 +350,8 @@
                     : `<div class="absolute -top-2.5 -left-2.5 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-10 border border-white/30 tracking-wider">#${num}</div>`;
                 
                 const imgHtml = p.image_url 
-                    ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">📦</div>`
-                    : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
+                    ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">🛍️</div>`
+                    : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">🛍️</div>`;
 
                 const productIdentifier = p.id || p.title || ('prod-' + num);
                 const safeTitle = (p.title || '').replace(/"/g, '&quot;');

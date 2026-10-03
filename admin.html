@@ -455,7 +455,9 @@
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         const SB_BUCKET = "public-assets";
-        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
+        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
+            ? window.location.origin 
+            : "https://customlink-webhook.modernshopp.workers.dev";
         
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
         

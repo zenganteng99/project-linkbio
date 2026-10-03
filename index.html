@@ -12,16 +12,16 @@
 
     <!-- Open Graph / Social Media Sharing Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://customlink.pages.dev/">
+    <meta property="og:url" content="https://customlink.id/">
     <meta property="og:title" content="Custom Link Elite - Etalase Bio TikTok & Instagram Mewah">
     <meta property="og:description" content="Stop buang saldo bulanan ke Linktree! Miliki etalase bio link bergambar mewah sekali bayar selamanya.">
-    <meta property="og:image" content="https://customlink.pages.dev/images/hero.jpg">
+    <meta property="og:image" content="https://customlink.id/images/hero.jpg">
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Custom Link Elite - Etalase Bio TikTok & Instagram Mewah">
     <meta name="twitter:description" content="Stop buang saldo bulanan ke Linktree! Miliki etalase bio link bergambar mewah sekali bayar selamanya.">
-    <meta name="twitter:image" content="https://customlink.pages.dev/images/hero.jpg">
+    <meta name="twitter:image" content="https://customlink.id/images/hero.jpg">
 
     <!-- Preconnect untuk Akselerasi DNS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -485,7 +485,9 @@
     <script>
         AOS.init({ once: true, offset: 80, duration: 800 });
 
-        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
+        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
+            ? window.location.origin 
+            : "https://customlink-webhook.modernshopp.workers.dev";
 
         let currentBasePrice = 0;
         let appliedDiscountPercent = 0;

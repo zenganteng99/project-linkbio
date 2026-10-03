@@ -24,7 +24,8 @@ const DANA_HOSTS = {
 };
 const DANA_CREATE_ORDER_PATH = "/payment-gateway/v1.0/debit/payment-host-to-host.htm";
 
-const REDIRECT_URL = "https://customlink.pages.dev/";
+const PRIMARY_DOMAIN = "https://customlink.id";
+const REDIRECT_URL = "https://customlink.id/";
 const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webhook/gapura";
 const PAGES_ORIGIN = "https://customlink.pages.dev";
 const DEFAULT_CHANNEL_ID = "95221";
@@ -170,14 +171,14 @@ async function handleCreatePayment(request, env) {
 
   const danaEnv = String(env.DANA_ENV || "sandbox").toLowerCase() === "production" ? "production" : "sandbox";
   const danaBaseUrl = DANA_HOSTS[danaEnv];
-  const origin = String(env.DANA_ORIGIN || PAGES_ORIGIN).trim().replace(/\/+$/, "") || PAGES_ORIGIN;
+  const origin = String(env.DANA_ORIGIN || PRIMARY_DOMAIN).trim().replace(/\/+$/, "") || PRIMARY_DOMAIN;
 
   const orderId = isUpgrade
     ? ("UPG-" + clientSlug.slice(0, 15) + "-" + Date.now().toString().slice(-8))
     : ("ORDER-" + Date.now());
 
   const returnUrl = isUpgrade
-    ? `${PAGES_ORIGIN}/admin.html?slug=${encodeURIComponent(clientSlug)}&upgrade_success=1`
+    ? `${PRIMARY_DOMAIN}/admin.html?slug=${encodeURIComponent(clientSlug)}&upgrade_success=1`
     : REDIRECT_URL;
 
   const orderTitle = (isUpgrade ? ('Upgrade ' + packageName) : ('CustomLink ' + packageName)).slice(0, 32);
@@ -357,7 +358,7 @@ async function handleGapuraWebhook(request, env) {
       // Hapus Edge Cache katalog untuk toko ini
       try {
         const cache = caches.default;
-        const cacheUrl = new URL(PAGES_ORIGIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug));
+        const cacheUrl = new URL(PRIMARY_DOMAIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug));
         await cache.delete(new Request(cacheUrl.toString()));
       } catch (cErr) {}
 
@@ -869,7 +870,7 @@ async function handlePageRender(request, env, ctx) {
   let seo = {
     title: "Bio Link Katalog",
     description: "Katalog produk resmi dan link diskon eksklusif.",
-    image: `${PAGES_ORIGIN}/images/default-og.png`,
+    image: `${PRIMARY_DOMAIN}/images/default-og.png`,
     url: url.href
   };
 
