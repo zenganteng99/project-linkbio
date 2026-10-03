@@ -1,10 +1,10 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Auto-Scraper
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
-//   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID)
+//   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID & Max Products)
 //   POST    /api/create-payment     -> Buat transaksi pembayaran DANA SNAP (Order Baru & Upgrade)
 //   POST    /api/webhook/gapura     -> Auto-aktivasi klien & Auto-Upgrade paket setelah pembayaran sukses
-//   POST    /api/scrape-product     -> Ekstrak otomatis metadata produk dari link affiliate (Shopee/TikTok/Tokopedia)
+//   POST    /api/scrape-product     -> Ekstrak cerdas metadata produk dari link affiliate (Shopee/TikTok/Tokopedia)
 //   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
 //   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin (Cache 60s)
 //   POST    /api/check-voucher      -> Validasi kode voucher & endorse secara aman (Server-Side)
@@ -398,7 +398,42 @@ async function handleGapuraWebhook(request, env) {
   }
 }
 
-// --- Handler: POST /api/scrape-product (Auto-Extract Shopee/TikTok/Tokopedia) ---
+// --- Helper Auto-Scraper: Pembersih Teks & Pengurai Slug URL ---
+function decodeHtmlEntities(str) {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
+}
+
+function extractTitleFromUrlSlug(urlStr) {
+  if (!urlStr) return "";
+  try {
+    const u = new URL(urlStr);
+    const segments = u.pathname.split("/").filter(Boolean);
+    for (const seg of segments) {
+      if (seg.includes("-i.")) {
+        let clean = seg.split("-i.")[0];
+        clean = decodeURIComponent(clean).replace(/-/g, " ").replace(/\s+/g, " ").trim();
+        if (clean.length > 3) return clean;
+      }
+      if (seg.length > 5 && !['product', 'item', 'universal-link', 'p', 'share', 'm'].includes(seg.toLowerCase())) {
+        let clean = decodeURIComponent(seg).replace(/-/g, " ").replace(/\s+/g, " ").trim();
+        if (clean.length > 5 && !/^\d+$/.test(clean)) {
+          return clean;
+        }
+      }
+    }
+  } catch (e) {}
+  return "";
+}
+
+// --- Handler: POST /api/scrape-product (Smart Multi-Layer Resolver) ---
 async function handleScrapeProduct(request) {
   let body;
   try {
@@ -417,68 +452,114 @@ async function handleScrapeProduct(request) {
   }
 
   try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
-      },
+    const headersList = {
+      "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Cache-Control": "no-cache"
+    };
+
+    let response = await fetch(targetUrl, {
+      headers: headersList,
       redirect: "follow"
     });
 
-    const html = await response.text();
+    let finalUrl = response.url || targetUrl;
+    let html = await response.text();
 
     // 1. Ekstrak Judul Produk
     let title = "";
-    const ogTitleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ||
+    const ogTitleMatch = html.match(/<meta[^>]+property=["'](?:og:title|twitter:title)["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:title|twitter:title)["']/i) ||
                          html.match(/<title[^>]*>([^<]+)<\/title>/i);
     if (ogTitleMatch) {
-      title = ogTitleMatch[1]
-        .replace(/\s*\|\s*(Shopee|Tokopedia|TikTok Shop|TikTok|Lazada).*/gi, "")
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .trim();
+      title = ogTitleMatch[1];
     }
 
     // 2. Ekstrak Foto Produk
     let imageUrl = "";
-    const ogImageMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+    const ogImageMatch = html.match(/<meta[^>]+property=["'](?:og:image|twitter:image|og:image:secure_url)["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:image|twitter:image|og:image:secure_url)["']/i);
     if (ogImageMatch) {
       imageUrl = ogImageMatch[1].trim();
     }
 
-    // 3. Ekstrak Harga (Jika Tersedia)
+    // 3. Ekstrak Harga Produk
     let price = "";
-    const ogPriceMatch = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
+    const ogPriceMatch = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:price:amount|product:price:amount)["']/i);
     if (ogPriceMatch) {
       price = ogPriceMatch[1].replace(/[^\d]/g, "");
-    } else {
+    }
+
+    // LAPISAN 2: JSON-LD Structured Data
+    if (!title || !imageUrl || !price) {
+      const jsonLdMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+      if (jsonLdMatch) {
+        try {
+          const ld = JSON.parse(jsonLdMatch[1]);
+          if (!title && ld.name) title = ld.name;
+          if (!imageUrl && ld.image) {
+            imageUrl = Array.isArray(ld.image) ? ld.image[0] : (typeof ld.image === 'object' ? ld.image.url : ld.image);
+          }
+          if (!price && ld.offers) {
+            const offer = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+            if (offer && offer.price) price = String(offer.price).replace(/[^\d]/g, "");
+          }
+        } catch (e) {}
+      }
+    }
+
+    // LAPISAN 3: Canonical Link & Meta Refresh URL Resolver
+    if (!title || !imageUrl) {
+      const canonicalMatch = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+      const refreshMatch = html.match(/url=([^"'>\s;]+)/i);
+      const detectedRedirectUrl = (canonicalMatch && canonicalMatch[1]) || (refreshMatch && refreshMatch[1]) || "";
+
+      if (!title) {
+        title = extractTitleFromUrlSlug(detectedRedirectUrl) || extractTitleFromUrlSlug(finalUrl) || extractTitleFromUrlSlug(targetUrl);
+      }
+    }
+
+    // LAPISAN 4: Pemindaian CDN Shopee / TikTok jika gambar tersembunyi
+    if (!imageUrl) {
+      const cdnMatch = html.match(/https:\/\/(?:down-id\.img\.susercontent\.com|cf\.shopee\.co\.id\/file|p16-va\.tiktokcdn\.com)\/[a-zA-Z0-9_\-\.\/]+/i);
+      if (cdnMatch) {
+        imageUrl = cdnMatch[0].replace(/["'>].*$/, "");
+      }
+    }
+
+    // LAPISAN 5: Deteksi Regex Harga Cadangan
+    if (!price) {
       const rpMatch = html.match(/Rp\s*([\d\.,]+)/i);
       if (rpMatch) {
         price = rpMatch[1].replace(/[^\d]/g, "");
       }
     }
 
-    if (!title && !imageUrl) {
+    if (title) {
+      title = decodeHtmlEntities(title)
+        .replace(/\s*\|\s*(Shopee|Tokopedia|TikTok Shop|TikTok|Lazada).*/gi, "")
+        .replace(/Jual\s+/i, "")
+        .trim();
+    }
+
+    // Jika setidaknya judul atau gambar berhasil ditemukan, kirimkan hasil
+    if (title || imageUrl) {
       return jsonResponse({
-        success: false,
-        message: "Halaman tidak menyediakan tag OpenGraph publik. Silakan masukkan data manual."
-      }, 422);
+        success: true,
+        data: {
+          title: title ? title.slice(0, 150) : "",
+          imageUrl: imageUrl || "",
+          price: price || ""
+        }
+      }, 200);
     }
 
     return jsonResponse({
-      success: true,
-      data: {
-        title: title.slice(0, 150),
-        imageUrl: imageUrl,
-        price: price
-      }
-    }, 200);
+      success: false,
+      message: "Halaman tujuan membatasi akses perayap otomatis. Silakan masukkan nama dan foto produk secara manual."
+    }, 422);
 
   } catch (err) {
     return jsonResponse({
