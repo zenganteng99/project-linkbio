@@ -1,9 +1,9 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
 //   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID)
-//   POST    /api/create-payment     -> Buat transaksi pembayaran (SNAP createOrder)
-//   POST    /api/webhook/gapura     -> Auto-aktivasi klien setelah pembayaran sukses
+//   POST    /api/create-payment     -> Buat transaksi pembayaran DANA SNAP (Order Baru & Upgrade)
+//   POST    /api/webhook/gapura     -> Auto-aktivasi klien & Auto-Upgrade paket setelah pembayaran sukses
 //   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
 //   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin (Cache 60s)
 //   POST    /api/check-voucher      -> Validasi kode voucher & endorse secara aman (Server-Side)
@@ -129,7 +129,7 @@ async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timesta
   return btoa(bin);
 }
 
-// --- Handler: POST /api/create-payment ---
+// --- Handler: POST /api/create-payment (Mendukung Order Baru & Upgrade) ---
 async function handleCreatePayment(request, env) {
   let body;
   try {
@@ -142,12 +142,19 @@ async function handleCreatePayment(request, env) {
   const buyerPhone = String(body.buyerPhone || "").trim();
   const packageName = String(body.packageName || "").trim();
   const amount = Number(body.amount);
+  const isUpgrade = Boolean(body.isUpgrade);
+  const clientSlug = String(body.clientSlug || "").trim().toLowerCase();
+  const targetMaxProducts = Number(body.targetMaxProducts || (packageName.toLowerCase().includes("ultimate") ? 50 : 30));
 
   if (!buyerName || !buyerPhone || !packageName || !Number.isFinite(amount) || amount <= 0) {
     return jsonResponse({
       success: false,
       message: "Payload tidak lengkap: buyerName, buyerPhone, packageName, dan amount (>0) wajib diisi."
     }, 400);
+  }
+
+  if (isUpgrade && !clientSlug) {
+    return jsonResponse({ success: false, message: "Client Slug wajib disertakan untuk upgrade paket." }, 400);
   }
 
   const partnerId = String(env.CLIENT_ID || "").trim();
@@ -164,7 +171,15 @@ async function handleCreatePayment(request, env) {
   const danaBaseUrl = DANA_HOSTS[danaEnv];
   const origin = String(env.DANA_ORIGIN || PAGES_ORIGIN).trim().replace(/\/+$/, "") || PAGES_ORIGIN;
 
-  const orderId = "ORDER-" + Date.now();
+  const orderId = isUpgrade
+    ? ("UPG-" + clientSlug.slice(0, 15) + "-" + Date.now().toString().slice(-8))
+    : ("ORDER-" + Date.now());
+
+  const returnUrl = isUpgrade
+    ? `${PAGES_ORIGIN}/admin.html?slug=${encodeURIComponent(clientSlug)}&upgrade_success=1`
+    : REDIRECT_URL;
+
+  const orderTitle = (isUpgrade ? ('Upgrade ' + packageName) : ('CustomLink ' + packageName)).slice(0, 32);
   const amountStr = String(Math.round(amount)) + ".00";
   const subMerchantId = String(env.SUB_MERCHANT_ID || "").trim();
   const externalStoreId = String(env.EXTERNAL_STORE_ID || "").trim();
@@ -175,13 +190,17 @@ async function handleCreatePayment(request, env) {
     amount: { value: amountStr, currency: "IDR" },
     validUpTo: snapValidUpTo(),
     urlParams: [
-      { url: REDIRECT_URL, type: "PAY_RETURN", isDeeplink: "N" },
+      { url: returnUrl, type: "PAY_RETURN", isDeeplink: "N" },
       { url: NOTIFY_URL, type: "NOTIFICATION", isDeeplink: "N" }
     ],
     additionalInfo: { 
       mcc: '5734', 
       envInfo: { sourcePlatform: 'IPG', terminalType: 'SYSTEM' }, 
-      order: { orderTitle: ('CustomLink ' + String(packageName || 'Package')).slice(0, 32), scenario: 'REDIRECT' } 
+      order: { orderTitle: orderTitle, scenario: 'REDIRECT' },
+      isUpgrade: isUpgrade,
+      clientSlug: clientSlug,
+      targetMaxProducts: targetMaxProducts,
+      packageName: packageName
     }
   };
   if (subMerchantId) danaBody.subMerchantId = subMerchantId;
@@ -264,7 +283,7 @@ async function handleCreatePayment(request, env) {
   return jsonResponse({ success: true, orderId: orderId, paymentUrl: paymentUrl, danaResponse: gatewayData }, 200);
 }
 
-// --- Handler: POST /api/webhook/gapura ---
+// --- Handler: POST /api/webhook/gapura (Mendukung Aktivasi & Upgrade Otomatis) ---
 function generateSlug(name, orderId) {
   const base = String(name || "client").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "client";
@@ -292,6 +311,62 @@ async function handleGapuraWebhook(request, env) {
     return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
   }
 
+  const isUpgrade = String(orderId).startsWith("UPG-") || Boolean(addInfo.isUpgrade);
+
+  // 1. JIKA INI TRANSAKSI UPGRADE PAKET
+  if (isUpgrade) {
+    let clientSlug = addInfo.clientSlug;
+    if (!clientSlug && String(orderId).startsWith("UPG-")) {
+      const parts = orderId.split("-");
+      if (parts.length >= 3) {
+        clientSlug = parts[1];
+      }
+    }
+    clientSlug = (clientSlug || "default").trim().toLowerCase();
+
+    let targetMax = Number(addInfo.targetMaxProducts);
+    if (!targetMax) {
+      targetMax = packageName.toLowerCase().includes("ultimate") ? 50 : 30;
+    }
+
+    const amountVal = Number(payload.amount?.value || addInfo.amount || 0);
+
+    try {
+      const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/process_package_upgrade`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceKey,
+          "Authorization": "Bearer " + serviceKey
+        },
+        body: JSON.stringify({
+          p_order_id: orderId,
+          p_client_slug: clientSlug,
+          p_target_package: packageName,
+          p_target_max: targetMax,
+          p_amount: amountVal
+        })
+      });
+
+      if (!rpcRes.ok) {
+        const errTxt = await rpcRes.text();
+        return jsonResponse({ status: "ERROR", message: "Gagal memproses upgrade di Supabase: " + errTxt }, 502);
+      }
+
+      // Hapus Edge Cache katalog untuk toko ini agar limit baru langsung tampil
+      try {
+        const cache = caches.default;
+        const cacheUrl = new URL(PAGES_ORIGIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug));
+        await cache.delete(new Request(cacheUrl.toString()));
+      } catch (cErr) {}
+
+      return jsonResponse({ status: "OK", message: "Upgrade paket berhasil diproses", client_slug: clientSlug, max_products: targetMax }, 200);
+    } catch (uErr) {
+      return jsonResponse({ status: "ERROR", message: "Kesalahan server saat memproses upgrade: " + (uErr && uErr.message) }, 500);
+    }
+  }
+
+  // 2. JIKA INI PENDAFTARAN KLIEN BARU
   const clientSlug = generateSlug(customerName, orderId);
 
   try {
@@ -441,7 +516,7 @@ async function handlePublicStore(request, env, ctx) {
 
   try {
     const [settingsRes, productsRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=client_slug,profile_name,hero_title,hero_subtitle,background_url,profile_image_url,theme_style,instagram_link,instagram_active,tiktok_link,tiktok_active,whatsapp_link,whatsapp_active,fb_pixel_id,tiktok_pixel_id,google_analytics_id&limit=1`, {
+      fetch(`${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=client_slug,profile_name,hero_title,hero_subtitle,background_url,profile_image_url,theme_style,instagram_link,instagram_active,tiktok_link,tiktok_active,whatsapp_link,whatsapp_active,fb_pixel_id,tiktok_pixel_id,google_analytics_id,max_products&limit=1`, {
         headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
       }),
       fetch(`${SUPABASE_URL}/rest/v1/products?client_slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,title,price,image_url,affiliate_link,sort_order,is_active&order=sort_order.asc`, {
