@@ -1,7 +1,7 @@
 // customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
-//   GET     /api/public/store       -> Katalog publik ter-cache (Mencegah beban Supabase)
+//   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID)
 //   POST    /api/create-payment     -> Buat transaksi pembayaran (SNAP createOrder)
 //   POST    /api/webhook/gapura     -> Auto-aktivasi klien setelah pembayaran sukses
 //   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
@@ -384,7 +384,6 @@ async function handleAdminAnalytics(request, env, ctx) {
   const cacheKey = new Request(cacheUrl.toString(), request);
   const cache = caches.default;
 
-  // 1. Cek Edge Cache
   let cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) return cachedResponse;
 
@@ -423,7 +422,7 @@ async function handleAdminAnalytics(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit) ---
+// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID) ---
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
@@ -441,9 +440,8 @@ async function handlePublicStore(request, env, ctx) {
   if (!sbKey) return jsonResponse({ error: "Supabase key belum terkonfigurasi." }, 500);
 
   try {
-    // Ambil settings & products secara paralel
     const [settingsRes, productsRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=client_slug,profile_name,hero_title,hero_subtitle,background_url,profile_image_url,theme_style,instagram_link,instagram_active,tiktok_link,tiktok_active,whatsapp_link,whatsapp_active&limit=1`, {
+      fetch(`${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=client_slug,profile_name,hero_title,hero_subtitle,background_url,profile_image_url,theme_style,instagram_link,instagram_active,tiktok_link,tiktok_active,whatsapp_link,whatsapp_active,fb_pixel_id,tiktok_pixel_id,google_analytics_id&limit=1`, {
         headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
       }),
       fetch(`${SUPABASE_URL}/rest/v1/products?client_slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,title,price,image_url,affiliate_link,sort_order,is_active&order=sort_order.asc`, {
@@ -595,7 +593,6 @@ async function handlePageRender(request, env, ctx) {
     return fetch(PAGES_ORIGIN + targetPath, { headers: { "Host": pagesHost } });
   }
 
-  // 1. Cek Edge Cache untuk halaman render SEO
   const cacheKey = new Request(url.href, request);
   const cache = caches.default;
   const cachedPage = await cache.match(cacheKey);
@@ -650,7 +647,6 @@ async function handlePageRender(request, env, ctx) {
     })
     .transform(response);
 
-  // Klon respons untuk disimpan di Edge Cache selama 300 detik
   const finalResponse = new Response(transformedResponse.body, transformedResponse);
   finalResponse.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
 
