@@ -33,14 +33,15 @@ const DANA_HOSTS = {
 };
 const DANA_CREATE_ORDER_PATH = "/payment-gateway/v1.0/debit/payment-host-to-host.htm";
 
-// Arahkan kembali ke root domain (landing page)
 const REDIRECT_URL = "https://customlink.pages.dev/";
 const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webhook/gapura";
 const PAGES_ORIGIN = "https://customlink.pages.dev";
-// CHANNEL-ID: spesifikasi SNAP mewajibkan 1-5 karakter. Nilai contoh dari dashboard DANA
-// (Sample Payload) untuk akun ini adalah 95221; bisa dioverride lewat env DANA_CHANNEL_ID.
 const DEFAULT_CHANNEL_ID = "95221";
+
+// Supabase Connection & Fallback Keys (Kunci aman dimuat dari Cloudflare Secrets)
 const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "";
+const DEFAULT_SUPABASE_SERVICE_KEY = "";
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -71,8 +72,6 @@ function extractGatewayMessage(data) {
 }
 
 // --- SNAP Helpers ---
-// Spesifikasi DANA: X-TIMESTAMP = "YYYY-MM-DDTHH:mm:ss+07:00" (GMT+7 / waktu Jakarta, tepat 25 karakter).
-// Nilai ini juga masuk ke stringToSign X-SIGNATURE, jadi header dan signature wajib memakai nilai yang sama.
 function snapTimestamp() {
   const d = new Date(Date.now() + 7 * 60 * 60 * 1000);
   const p = (n) => String(n).padStart(2, "0");
@@ -96,8 +95,6 @@ function randomExternalId() {
   return "sdk" + s.substring(3, 31);
 }
 
-// CHANNEL-ID wajib 1-5 karakter (spec DANA: "Device identification ... 1 - 5 characters").
-// Nilai yang lebih panjang diabaikan supaya DANA tidak menolak request karena format.
 function resolveChannelId(env) {
   const raw = String((env && env.DANA_CHANNEL_ID) || "").trim();
   if (raw && raw.length <= 5) return raw;
@@ -317,7 +314,9 @@ async function handleGapuraWebhook(request, env) {
   if (!orderId) {
     return jsonResponse({ status: "INVALID", message: "orderId tidak ditemukan di payload webhook." }, 400);
   }
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
+  if (!serviceKey) {
     return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
   }
 
@@ -328,8 +327,8 @@ async function handleGapuraWebhook(request, env) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-        "Authorization": "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
+        "apikey": serviceKey,
+        "Authorization": "Bearer " + serviceKey,
         "Prefer": "return=representation"
       },
       body: JSON.stringify({
@@ -353,7 +352,6 @@ async function handleGapuraWebhook(request, env) {
 
 // --- Handler: POST /api/track (Analytics Ingestion Non-blocking) ---
 async function handleTrack(request, env, ctx) {
-  // 1. Tangkal Bot, Crawler, dan Mesin Pencari
   const ua = request.headers.get("user-agent") || "";
   if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) {
     return new Response(null, { status: 204 });
@@ -362,14 +360,14 @@ async function handleTrack(request, env, ctx) {
   try {
     const body = await request.json();
     const clientSlug = (body.clientSlug || body.slug || "default").trim();
-    const eventType = body.eventType || "view"; // 'view', 'product_click', 'social_click'
+    const eventType = body.eventType || "view";
     const targetId = String(body.targetId || "").trim();
 
-    // 2. Deteksi Perangkat Otomatis via Cloudflare Header
+    // Deteksi Perangkat Otomatis via Cloudflare Header
     const cfDevice = (request.headers.get("cf-device-type") || "desktop").toLowerCase();
     const deviceType = (cfDevice === "mobile" || cfDevice === "tablet") ? "mobile" : "desktop";
 
-    // 3. Normalisasi Referrer Domain
+    // Normalisasi Referrer Domain
     let rawRef = (body.referrer || "direct").toLowerCase();
     let referrer = "direct";
     if (rawRef.includes("instagram.com")) referrer = "instagram";
@@ -378,8 +376,12 @@ async function handleTrack(request, env, ctx) {
     else if (rawRef.includes("facebook.com")) referrer = "facebook";
     else if (rawRef !== "direct" && rawRef !== "") referrer = "other";
 
-    // 4. Eksekusi RPC ke Supabase di background tanpa menahan response
-    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+    // Deteksi Geolokasi Pengunjung via Edge Cloudflare
+    const country = request.cf?.country || request.headers.get("cf-ipcountry") || "ID";
+    const city = request.cf?.city || request.headers.get("cf-ipcity") || "Indonesia";
+
+    // Eksekusi RPC ke Supabase di background tanpa menahan response
+    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
     const task = fetch(`${SUPABASE_URL}/rest/v1/rpc/record_analytics_event`, {
       method: "POST",
       headers: {
@@ -392,7 +394,9 @@ async function handleTrack(request, env, ctx) {
         p_event_type: eventType,
         p_device_type: deviceType,
         p_referrer: referrer,
-        p_target_id: targetId
+        p_target_id: targetId,
+        p_country: country,
+        p_city: city
       })
     }).catch((err) => console.error("[Analytics Error]", err));
 
@@ -411,7 +415,7 @@ async function handleAdminAnalytics(request, env) {
   const url = new URL(request.url);
   const clientSlug = (url.searchParams.get("clientSlug") || url.searchParams.get("slug") || "default").trim();
 
-  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
   if (!sbKey) {
     return jsonResponse({ error: "Konfigurasi Supabase belum lengkap." }, 500);
   }
@@ -445,7 +449,6 @@ async function handlePageRender(request, env) {
   const segments = url.pathname.split("/").filter(Boolean);
   const pagesHost = new URL(PAGES_ORIGIN).host;
 
-  // Lewatkan aset statis (.js, .css, gambar, ikon) langsung ke Cloudflare Pages
   if (url.pathname.includes(".") && !url.pathname.endsWith(".html")) {
     return fetch(PAGES_ORIGIN + url.pathname, {
       headers: { "Host": pagesHost }
@@ -455,7 +458,6 @@ async function handlePageRender(request, env) {
   const slug = segments.length > 0 ? segments[0] : "";
   const isSpecialPath = ["admin", "api"].includes(slug.toLowerCase());
 
-  // Untuk root domain (/) atau /admin, teruskan ke berkas masing-masing
   if (!slug || isSpecialPath) {
     const targetPath = slug === "admin" ? "/admin.html" : url.pathname;
     return fetch(PAGES_ORIGIN + targetPath, {
@@ -463,7 +465,6 @@ async function handlePageRender(request, env) {
     });
   }
 
-  // Untuk rute toko klien (/healthyjus), ambil template store.html langsung agar status HTTP 200 OK
   const response = await fetch(PAGES_ORIGIN + "/store.html", {
     headers: { "Host": pagesHost }
   });
@@ -476,7 +477,7 @@ async function handlePageRender(request, env) {
   };
 
   try {
-    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
     if (sbKey) {
       const sbRes = await fetch(
         `${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=profile_name,hero_title,hero_subtitle,profile_image_url,background_url`,
@@ -502,7 +503,6 @@ async function handlePageRender(request, env) {
     console.error("Gagal mendapatkan metadata SEO dari Supabase:", err);
   }
 
-  // Suntikkan tag Meta SEO & Open Graph ke dalam tag <head>
   return new HTMLRewriter()
     .on("title", {
       element(e) {
@@ -531,12 +531,10 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 1. CORS Preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // 2. API Endpoints
     if (url.pathname === "/api/create-payment" && request.method === "POST") {
       return handleCreatePayment(request, env);
     }
@@ -553,7 +551,6 @@ export default {
       return handleAdminAnalytics(request, env);
     }
 
-    // 3. Routing Halaman Frontend & Dynamic SEO Rewriter
     if (request.method === "GET") {
       return handlePageRender(request, env);
     }
