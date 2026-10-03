@@ -5,25 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bio Link - Affiliate</title>
     
-    <!-- 1. Meta SEO Bawaan (Mengatasi audit 'Dokumen tidak memiliki deskripsi meta') -->
+    <!-- 1. Meta SEO Bawaan -->
     <meta name="description" content="Katalog produk resmi, rekomendasi belanja viral, dan link diskon eksklusif.">
     <meta property="og:type" content="website">
 
-    <!-- 2. Preconnect Bersih (Memangkas latensi koneksi pihak ketiga) -->
-    <link rel="preconnect" href="https://aonbjbcytrpjaxuhyucq.supabase.co">
+    <!-- 2. Preconnect Bersih -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     
-    <!-- 3. Non-blocking Google Fonts (Memangkas pemblokiran render ~750ms) -->
+    <!-- 3. Non-blocking Google Fonts -->
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
     </noscript>
 
-    <!-- 4. Pemuatan Skrip Non-blocking (Supabase JS deferred untuk memangkas render blocking 1.500ms) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" defer></script>
+    <!-- 4. Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -52,7 +49,6 @@
     </style>
 </head>
 <body class="bg-gradient-purple min-h-screen text-gray-800 antialiased selection:bg-pink-500 selection:text-white">
-    <!-- 5. Tag Semantik <main> (Mengatasi audit 'Dokumen tidak memiliki penanda utama') -->
     <main id="content" class="min-h-screen pb-16">
         <div id="hero-bg" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
             <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#0f0c29]"></div>
@@ -81,19 +77,10 @@
     </main>
 
     <script>
-        const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
-        const TRACK_ENDPOINT = "https://customlink-webhook.modernshopp.workers.dev/api/track";
+        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
+        const TRACK_ENDPOINT = `${WORKER_ORIGIN}/api/track`;
+        const STORE_ENDPOINT = `${WORKER_ORIGIN}/api/public/store`;
         
-        let sbClient = null;
-        function getSupabase() {
-            if (!sbClient && window.supabase) {
-                sbClient = window.supabase.createClient(SB_URL, SB_KEY);
-            }
-            return sbClient;
-        }
-        
-        // Pengecualian route sistem (termasuk 'store') agar fallback tetap membaca slug 'default'
         function getSlug() { 
             const params = new URLSearchParams(location.search);
             if (params.get("slug")) return params.get("slug");
@@ -110,7 +97,7 @@
             return "default"; 
         }
 
-        // --- SISTEM PELACAK ANALITIK (100% Reliable Cross-Origin via fetch keepalive) ---
+        // --- SISTEM PELACAK ANALITIK (Reliable Cross-Origin via fetch keepalive) ---
         function sendEvent(eventType, targetId = "") {
             try {
                 const currentSlug = getSlug();
@@ -137,23 +124,23 @@
             return isNaN(n) ? p : "Rp " + n.toLocaleString("id-ID"); 
         }
         
-        async function fetchSettings(slug) {
-            const client = getSupabase();
-            if (!client) return null;
-            const { data, error } = await client.from("settings").select("client_slug, profile_name, hero_title, hero_subtitle, background_url, profile_image_url, theme_style, instagram_link, instagram_active, tiktok_link, tiktok_active, whatsapp_link, whatsapp_active").eq("client_slug", slug).limit(1);
-            if (error) { console.error("Settings error:", error); return slug !== "default" ? await fetchSettings("default") : null; }
-            if (data && data.length > 0) return data[0];
-            return slug !== "default" ? await fetchSettings("default") : null;
-        }
-        
-        // Fallback otomatis ke produk 'default' jika slug klien kosong atau URL terbaca sebagai route sistem
-        async function fetchProducts(slug) {
-            const client = getSupabase();
-            if (!client) return [];
-            const { data, error } = await client.from("products").select("id, title, price, image_url, affiliate_link, sort_order, is_active").eq("client_slug", slug).eq("is_active", true).order("sort_order", { ascending: true });
-            if (error) { console.error("Products error:", error); return []; }
-            if (data && data.length > 0) return data;
-            return slug !== "default" ? await fetchProducts("default") : [];
+        // --- AMBIL KATALOG TOKO DARI CLOUDFLARE EDGE CACHE (<15ms) ---
+        async function fetchStoreData(slug) {
+            try {
+                const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}`);
+                if (!res.ok) throw new Error("Gagal mengambil data dari Edge");
+                const data = await res.json();
+                
+                // Fallback ke default jika toko belum terkonfigurasi
+                if ((!data.settings || !data.products || data.products.length === 0) && slug !== "default") {
+                    const defRes = await fetch(`${STORE_ENDPOINT}?slug=default`);
+                    if (defRes.ok) return await defRes.json();
+                }
+                return data;
+            } catch (err) {
+                console.error("Store cache fetch error:", err);
+                return { settings: null, products: [] };
+            }
         }
         
         function renderHero(s) {
@@ -266,7 +253,6 @@
                 document.title = "Bio Link - " + slug;
             }
 
-            // Rekam Pageview otomatis saat halaman dimuat
             sendEvent("view");
 
             const cacheKey = `bio_cache_${slug}`;
@@ -287,7 +273,9 @@
         }
 
         async function loadAndRender(slug, cacheKey) {
-            const [settings, products] = await Promise.all([fetchSettings(slug), fetchProducts(slug)]);
+            const data = await fetchStoreData(slug);
+            const settings = data.settings;
+            const products = data.products || [];
             try { sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products })); } catch (e) {}
             renderHero(settings);
             renderProducts(products);
@@ -295,14 +283,13 @@
 
         async function backgroundSync(slug, cacheKey) {
             try {
-                const [settings, products] = await Promise.all([fetchSettings(slug), fetchProducts(slug)]);
-                sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products }));
+                const data = await fetchStoreData(slug);
+                sessionStorage.setItem(cacheKey, JSON.stringify({ settings: data.settings, products: data.products || [] }));
             } catch (e) {}
         }
         
         document.addEventListener("DOMContentLoaded", init);
 
-        // Delegasi Klik Event untuk Produk & Media Sosial
         document.addEventListener("click", (e) => {
             const productEl = e.target.closest("[data-track-product]");
             if (productEl) {
