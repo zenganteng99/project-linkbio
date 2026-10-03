@@ -1,25 +1,14 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Secure Voucher/Influencer API
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
+//   GET     /api/public/store       -> Katalog publik ter-cache (Mencegah beban Supabase)
 //   POST    /api/create-payment     -> Buat transaksi pembayaran (SNAP createOrder)
 //   POST    /api/webhook/gapura     -> Auto-aktivasi klien setelah pembayaran sukses
 //   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
-//   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin
+//   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin (Cache 60s)
 //   POST    /api/check-voucher      -> Validasi kode voucher & endorse secara aman (Server-Side)
 //   POST    /api/register-influencer-> Registrasi akun influencer & klaim endorse aman (Server-Side)
-//   GET     /*                      -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
-//
-// ---------------------------------------------------------------------------
-// Konfigurasi DANA (env) — lihat worker/wrangler.toml [vars] + wrangler secret:
-//   MERCHANT_ID        : Merchant ID dari dashboard.dana.id (sandbox != production)
-//   CLIENT_ID          : X-PARTNER-ID dari dashboard.dana.id
-//   DANA_PRIVATE_KEY   : (secret) RSA PKCS#8 PEM untuk X-SIGNATURE
-//   DANA_ENV           : "sandbox" (api.sandbox.dana.id) | "production" (api.saas.dana.id)
-//   DANA_ORIGIN        : origin aplikasi yang terdaftar (JANGAN origin *.workers.dev)
-//   SUB_MERCHANT_ID    : External DIVISION ID (tab "Division"), BUKAN External Shop ID!
-//   EXTERNAL_STORE_ID  : External Shop ID (opsional, tab "Shop")
-//   DANA_CHANNEL_ID    : CHANNEL-ID 1-5 karakter (nilai dashboard DANA: 95221)
-// ---------------------------------------------------------------------------
+//   GET     /*                      -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection (Cache 300s)
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -39,15 +28,15 @@ const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webho
 const PAGES_ORIGIN = "https://customlink.pages.dev";
 const DEFAULT_CHANNEL_ID = "95221";
 
-// Supabase Connection & Fallback Keys (Kunci rahasia dibaca dari Cloudflare Secrets)
+// Supabase Connection & Fallback Keys
 const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "";
 const DEFAULT_SUPABASE_SERVICE_KEY = "";
 
-function jsonResponse(payload, status = 200) {
+function jsonResponse(payload, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(payload), {
     status: status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extraHeaders }
   });
 }
 
@@ -246,18 +235,6 @@ async function handleCreatePayment(request, env) {
     const gwMsg = extractGatewayMessage(gatewayData);
     const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
     const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
-    console.error("[DANA create-payment] ditolak", JSON.stringify({
-      httpStatus: gatewayResponse.status,
-      responseCode: gwCode || null,
-      responseMessage: gwMsg || null,
-      debugMessage: gwDebug || null,
-      orderId: orderId,
-      externalId: externalId,
-      origin: origin,
-      channelId: snapHeaders["CHANNEL-ID"],
-      subMerchantId: subMerchantId || null,
-      externalStoreId: externalStoreId || null
-    }));
     const rejectStatus = gatewayResponse.status >= 400 && gatewayResponse.status < 500 ? gatewayResponse.status : 502;
     return jsonResponse({
       success: false,
@@ -274,10 +251,6 @@ async function handleCreatePayment(request, env) {
     const gwMsg = extractGatewayMessage(gatewayData);
     const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
     const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
-    console.error("[DANA create-payment] tanpa webRedirectUrl", JSON.stringify({
-      httpStatus: gatewayResponse.status, responseCode: gwCode || null, debugMessage: gwDebug || null,
-      orderId: orderId, body: String(rawText || "").slice(0, 600)
-    }));
     return jsonResponse({
       success: false,
       orderId: orderId,
@@ -288,8 +261,6 @@ async function handleCreatePayment(request, env) {
     }, 502);
   }
 
-  console.log("[DANA create-payment] sukses " + orderId + " subMerchantId=" + (subMerchantId || "-") +
-    " origin=" + origin + " channelId=" + snapHeaders["CHANNEL-ID"]);
   return jsonResponse({ success: true, orderId: orderId, paymentUrl: paymentUrl, danaResponse: gatewayData }, 200);
 }
 
@@ -407,15 +378,19 @@ async function handleTrack(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/admin/analytics (Ringkasan Data Analitik 7 Hari) ---
-async function handleAdminAnalytics(request, env) {
-  const url = new URL(request.url);
-  const clientSlug = (url.searchParams.get("clientSlug") || url.searchParams.get("slug") || "default").trim();
+// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik) ---
+async function handleAdminAnalytics(request, env, ctx) {
+  const cacheUrl = new URL(request.url);
+  const cacheKey = new Request(cacheUrl.toString(), request);
+  const cache = caches.default;
 
+  // 1. Cek Edge Cache
+  let cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) return cachedResponse;
+
+  const clientSlug = (cacheUrl.searchParams.get("clientSlug") || cacheUrl.searchParams.get("slug") || "default").trim();
   const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
-  if (!sbKey) {
-    return jsonResponse({ error: "Konfigurasi Supabase belum lengkap." }, 500);
-  }
+  if (!sbKey) return jsonResponse({ error: "Konfigurasi Supabase belum lengkap." }, 500);
 
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_analytics_summary_7d`, {
@@ -434,13 +409,71 @@ async function handleAdminAnalytics(request, env) {
     }
 
     const data = await res.json();
-    return jsonResponse(data, 200);
+    const response = jsonResponse(data, 200, {
+      "Cache-Control": "public, max-age=60, s-maxage=60",
+      "CF-Cache-Status": "MISS"
+    });
+
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    }
+    return response;
   } catch (err) {
     return jsonResponse({ error: "Kesalahan internal analitik: " + (err && err.message) }, 500);
   }
 }
 
-// --- Handler: POST /api/check-voucher (Validasi Voucher & Endorse Server-Side) ---
+// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit) ---
+async function handlePublicStore(request, env, ctx) {
+  const url = new URL(request.url);
+  const slug = (url.searchParams.get("slug") || "default").trim();
+  const isNoCache = url.searchParams.get("nocache") === "1";
+
+  const cacheKey = new Request(url.origin + "/api/public/store?slug=" + encodeURIComponent(slug), request);
+  const cache = caches.default;
+
+  if (!isNoCache) {
+    const cachedResponse = await cache.match(cacheKey);
+    if (cachedResponse) return cachedResponse;
+  }
+
+  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  if (!sbKey) return jsonResponse({ error: "Supabase key belum terkonfigurasi." }, 500);
+
+  try {
+    // Ambil settings & products secara paralel
+    const [settingsRes, productsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=client_slug,profile_name,hero_title,hero_subtitle,background_url,profile_image_url,theme_style,instagram_link,instagram_active,tiktok_link,tiktok_active,whatsapp_link,whatsapp_active&limit=1`, {
+        headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
+      }),
+      fetch(`${SUPABASE_URL}/rest/v1/products?client_slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,title,price,image_url,affiliate_link,sort_order,is_active&order=sort_order.asc`, {
+        headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
+      })
+    ]);
+
+    const settingsData = await settingsRes.json();
+    const productsData = await productsRes.json();
+
+    const payload = {
+      settings: settingsData && settingsData.length > 0 ? settingsData[0] : null,
+      products: Array.isArray(productsData) ? productsData : []
+    };
+
+    const response = jsonResponse(payload, 200, {
+      "Cache-Control": "public, max-age=300, s-maxage=300",
+      "CF-Cache-Status": "MISS"
+    });
+
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    }
+    return response;
+  } catch (err) {
+    return jsonResponse({ error: "Gagal mengambil katalog dari server." }, 500);
+  }
+}
+
+// --- Handler: POST /api/check-voucher ---
 async function handleCheckVoucher(request, env) {
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
   if (!serviceKey) return jsonResponse({ valid: false, message: "Kredensial server belum lengkap." }, 500);
@@ -451,7 +484,6 @@ async function handleCheckVoucher(request, env) {
   if (!code) return jsonResponse({ valid: false, message: "Kode voucher kosong." }, 400);
 
   try {
-    // 1. Cek voucher endorse 100%
     const endorseRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(code)}&select=*`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
@@ -464,7 +496,6 @@ async function handleCheckVoucher(request, env) {
       return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
     }
 
-    // 2. Cek voucher influencer diskon reguler
     const infRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers?voucher_code=ilike.${encodeURIComponent(code)}&select=discount_percent`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
@@ -479,7 +510,7 @@ async function handleCheckVoucher(request, env) {
   }
 }
 
-// --- Handler: POST /api/register-influencer (Registrasi Akun Influencer Aman) ---
+// --- Handler: POST /api/register-influencer ---
 async function handleRegisterInfluencer(request, env) {
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
   if (!serviceKey) return jsonResponse({ success: false, message: "Kredensial server belum lengkap." }, 500);
@@ -500,7 +531,6 @@ async function handleRegisterInfluencer(request, env) {
   }
 
   try {
-    // 1. Verifikasi kode endorse masih belum terpakai
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}&is_used=eq.false&select=id`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
@@ -509,7 +539,6 @@ async function handleRegisterInfluencer(request, env) {
       return jsonResponse({ success: false, message: "Voucher endorse tidak sah atau sudah terpakai." }, 400);
     }
 
-    // 2. Simpan data influencer
     const insRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers`, {
       method: "POST",
       headers: {
@@ -529,11 +558,9 @@ async function handleRegisterInfluencer(request, env) {
       })
     });
     if (!insRes.ok) {
-      const errTxt = await insRes.text();
       return jsonResponse({ success: false, message: "Gagal menyimpan: Client Slug mungkin sudah terpakai." }, 400);
     }
 
-    // 3. Kunci voucher endorse agar tidak bisa dipakai ulang
     await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}`, {
       method: "PATCH",
       headers: {
@@ -550,16 +577,14 @@ async function handleRegisterInfluencer(request, env) {
   }
 }
 
-// --- Handler: Dynamic Open Graph & Meta SEO Injection via HTMLRewriter ---
-async function handlePageRender(request, env) {
+// --- Handler: Dynamic Open Graph & Meta SEO Injection (Edge Cached 300 Detik) ---
+async function handlePageRender(request, env, ctx) {
   const url = new URL(request.url);
   const segments = url.pathname.split("/").filter(Boolean);
   const pagesHost = new URL(PAGES_ORIGIN).host;
 
   if (url.pathname.includes(".") && !url.pathname.endsWith(".html")) {
-    return fetch(PAGES_ORIGIN + url.pathname, {
-      headers: { "Host": pagesHost }
-    });
+    return fetch(PAGES_ORIGIN + url.pathname, { headers: { "Host": pagesHost } });
   }
 
   const slug = segments.length > 0 ? segments[0] : "";
@@ -567,14 +592,16 @@ async function handlePageRender(request, env) {
 
   if (!slug || isSpecialPath) {
     const targetPath = slug === "admin" ? "/admin.html" : url.pathname;
-    return fetch(PAGES_ORIGIN + targetPath, {
-      headers: { "Host": pagesHost }
-    });
+    return fetch(PAGES_ORIGIN + targetPath, { headers: { "Host": pagesHost } });
   }
 
-  const response = await fetch(PAGES_ORIGIN + "/store.html", {
-    headers: { "Host": pagesHost }
-  });
+  // 1. Cek Edge Cache untuk halaman render SEO
+  const cacheKey = new Request(url.href, request);
+  const cache = caches.default;
+  const cachedPage = await cache.match(cacheKey);
+  if (cachedPage) return cachedPage;
+
+  const response = await fetch(PAGES_ORIGIN + "/store.html", { headers: { "Host": pagesHost } });
 
   let seo = {
     title: "Bio Link Katalog",
@@ -588,12 +615,7 @@ async function handlePageRender(request, env) {
     if (sbKey) {
       const sbRes = await fetch(
         `${SUPABASE_URL}/rest/v1/settings?client_slug=eq.${encodeURIComponent(slug)}&select=profile_name,hero_title,hero_subtitle,profile_image_url,background_url`,
-        {
-          headers: {
-            "apikey": sbKey,
-            "Authorization": `Bearer ${sbKey}`
-          }
-        }
+        { headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` } }
       );
 
       if (sbRes.ok) {
@@ -610,12 +632,8 @@ async function handlePageRender(request, env) {
     console.error("Gagal mendapatkan metadata SEO dari Supabase:", err);
   }
 
-  return new HTMLRewriter()
-    .on("title", {
-      element(e) {
-        e.setInnerContent(seo.title);
-      }
-    })
+  const transformedResponse = new HTMLRewriter()
+    .on("title", { element(e) { e.setInnerContent(seo.title); } })
     .on("head", {
       element(e) {
         e.append(`\n  <meta name="description" content="${seo.description}">`, { html: true });
@@ -631,6 +649,16 @@ async function handlePageRender(request, env) {
       }
     })
     .transform(response);
+
+  // Klon respons untuk disimpan di Edge Cache selama 300 detik
+  const finalResponse = new Response(transformedResponse.body, transformedResponse);
+  finalResponse.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+
+  if (ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(cache.put(cacheKey, finalResponse.clone()));
+  }
+
+  return finalResponse;
 }
 
 // --- Router Utama ---
@@ -640,6 +668,10 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === "/api/public/store" && request.method === "GET") {
+      return handlePublicStore(request, env, ctx);
     }
 
     if (url.pathname === "/api/create-payment" && request.method === "POST") {
@@ -655,7 +687,7 @@ export default {
     }
 
     if (url.pathname === "/api/admin/analytics" && request.method === "GET") {
-      return handleAdminAnalytics(request, env);
+      return handleAdminAnalytics(request, env, ctx);
     }
 
     if (url.pathname === "/api/check-voucher" && request.method === "POST") {
@@ -667,7 +699,7 @@ export default {
     }
 
     if (request.method === "GET") {
-      return handlePageRender(request, env);
+      return handlePageRender(request, env, ctx);
     }
 
     return jsonResponse({ success: false, message: "Not found." }, 404);
