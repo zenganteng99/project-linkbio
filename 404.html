@@ -97,7 +97,7 @@
             return "default"; 
         }
 
-        // --- SISTEM PELACAK ANALITIK (Reliable Cross-Origin via fetch keepalive) ---
+        // --- SISTEM PELACAK ANALITIK INTERNAL ---
         function sendEvent(eventType, targetId = "") {
             try {
                 const currentSlug = getSlug();
@@ -123,6 +123,96 @@
             const n = parseInt(p.toString().replace(/[^0-9]/g, "")); 
             return isNaN(n) ? p : "Rp " + n.toLocaleString("id-ID"); 
         }
+
+        function extractNumericPrice(p) {
+            if (!p) return 0;
+            const n = parseInt(p.toString().replace(/[^0-9]/g, ""));
+            return isNaN(n) ? 0 : n;
+        }
+
+        // --- SISTEM INJEKSI TRACKING PIXEL (META, TIKTOK, GOOGLE ANALYTICS) ---
+        function initTrackingPixels(settings) {
+            if (!settings) return;
+
+            // 1. Meta (Facebook) Pixel
+            const fbId = (settings.fb_pixel_id || "").trim();
+            if (fbId && !window._fbq_loaded) {
+                !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+                n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+                document,'script','https://connect.facebook.net/en_US/fbevents.js');
+                
+                fbq('init', fbId);
+                fbq('track', 'PageView');
+                window._fbq_loaded = true;
+            }
+
+            // 2. TikTok Pixel
+            const ttId = (settings.tiktok_pixel_id || "").trim();
+            if (ttId && !window._ttq_loaded) {
+                !function (w, d, t) {
+                    w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,s=d.createElement("script"),s.type="text/javascript",s.async=!0,s.src=i+"?sdkid="+e+"&lib="+t;var c=d.getElementsByTagName("script")[0];c.parentNode.insertBefore(s,c)};
+                    ttq.load(ttId);
+                    ttq.page();
+                }(window, document, 'ttq');
+                window._ttq_loaded = true;
+            }
+
+            // 3. Google Analytics / Google Tag Manager
+            const gaId = (settings.google_analytics_id || "").trim();
+            if (gaId) {
+                if (gaId.toUpperCase().startsWith('GTM-') && !window._gtm_loaded) {
+                    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                    })(window,document,'script','dataLayer',gaId);
+                    window._gtm_loaded = true;
+                } else if (!window._ga_loaded) {
+                    const gaScript = document.createElement('script');
+                    gaScript.async = true;
+                    gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+                    document.head.appendChild(gaScript);
+
+                    window.dataLayer = window.dataLayer || [];
+                    function gtag(){ dataLayer.push(arguments); }
+                    window.gtag = gtag;
+                    gtag('js', new Date());
+                    gtag('config', gaId);
+                    window._ga_loaded = true;
+                }
+            }
+        }
+
+        // Tembakkan event konversi klik iklan ke Pixel Meta, TikTok, dan GA
+        function trackPixelProductClick(title, price) {
+            const numPrice = extractNumericPrice(price);
+
+            if (window.fbq) {
+                fbq('track', 'InitiateCheckout', {
+                    content_name: title,
+                    value: numPrice,
+                    currency: 'IDR'
+                });
+            }
+
+            if (window.ttq) {
+                ttq.track('InitiateCheckout', {
+                    content_name: title,
+                    value: numPrice,
+                    currency: 'IDR'
+                });
+            }
+
+            if (window.gtag) {
+                gtag('event', 'begin_checkout', {
+                    currency: 'IDR',
+                    value: numPrice,
+                    items: [{ item_name: title, price: numPrice }]
+                });
+            }
+        }
         
         // --- AMBIL KATALOG TOKO DARI CLOUDFLARE EDGE CACHE (<15ms) ---
         async function fetchStoreData(slug) {
@@ -131,7 +221,6 @@
                 if (!res.ok) throw new Error("Gagal mengambil data dari Edge");
                 const data = await res.json();
                 
-                // Fallback ke default jika toko belum terkonfigurasi
                 if ((!data.settings || !data.products || data.products.length === 0) && slug !== "default") {
                     const defRes = await fetch(`${STORE_ENDPOINT}?slug=default`);
                     if (defRes.ok) return await defRes.json();
@@ -189,6 +278,7 @@
                     footerBrand.className = "font-semibold text-white/70";
                 }
                 renderSocialLinks(s, theme);
+                initTrackingPixels(s);
             }
         }
 
@@ -227,9 +317,11 @@
                     : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
 
                 const productIdentifier = p.id || p.title || ('prod-' + (i + 1));
+                const safeTitle = (p.title || '').replace(/"/g, '&quot;');
+                const rawPrice = p.price || '';
 
                 return `<div class="product-glass rounded-2xl p-3.5 shadow-xl relative overflow-hidden group">
-                    <a href="${p.affiliate_link || '#'}" target="_blank" class="block" data-track-product="${productIdentifier}">
+                    <a href="${p.affiliate_link || '#'}" target="_blank" class="block" data-track-product="${productIdentifier}" data-product-title="${safeTitle}" data-product-price="${rawPrice}">
                         <div class="flex gap-4 items-center">
                             <div class="relative flex-shrink-0 w-16 h-16">${imgHtml}${badge}</div>
                             <div class="flex-1 min-w-0 pr-1">
@@ -285,6 +377,7 @@
             try {
                 const data = await fetchStoreData(slug);
                 sessionStorage.setItem(cacheKey, JSON.stringify({ settings: data.settings, products: data.products || [] }));
+                if (data.settings) initTrackingPixels(data.settings);
             } catch (e) {}
         }
         
@@ -294,7 +387,14 @@
             const productEl = e.target.closest("[data-track-product]");
             if (productEl) {
                 const targetId = productEl.getAttribute("data-track-product") || "product";
+                const pTitle = productEl.getAttribute("data-product-title") || "Produk";
+                const pPrice = productEl.getAttribute("data-product-price") || "0";
+
+                // 1. Tembak analitik internal sistem
                 sendEvent("product_click", targetId);
+
+                // 2. Tembak event konversi iklan ke Meta, TikTok, dan Google Ads/GA
+                trackPixelProductClick(pTitle, pPrice);
                 return;
             }
 
