@@ -1,11 +1,13 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Secure Voucher/Influencer API
 // Route:
-//   OPTIONS /api/*              -> CORS preflight
-//   POST    /api/create-payment -> Buat transaksi pembayaran (SNAP createOrder)
-//   POST    /api/webhook/gapura -> Auto-aktivasi klien setelah pembayaran sukses
-//   POST    /api/track          -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
-//   GET     /api/admin/analytics-> Penarikan ringkasan data analitik 7 hari untuk admin
-//   GET     /*                  -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
+//   OPTIONS /api/*                  -> CORS preflight
+//   POST    /api/create-payment     -> Buat transaksi pembayaran (SNAP createOrder)
+//   POST    /api/webhook/gapura     -> Auto-aktivasi klien setelah pembayaran sukses
+//   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
+//   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin
+//   POST    /api/check-voucher      -> Validasi kode voucher & endorse secara aman (Server-Side)
+//   POST    /api/register-influencer-> Registrasi akun influencer & klaim endorse aman (Server-Side)
+//   GET     /*                      -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection
 //
 // ---------------------------------------------------------------------------
 // Konfigurasi DANA (env) — lihat worker/wrangler.toml [vars] + wrangler secret:
@@ -15,7 +17,6 @@
 //   DANA_ENV           : "sandbox" (api.sandbox.dana.id) | "production" (api.saas.dana.id)
 //   DANA_ORIGIN        : origin aplikasi yang terdaftar (JANGAN origin *.workers.dev)
 //   SUB_MERCHANT_ID    : External DIVISION ID (tab "Division"), BUKAN External Shop ID!
-//                        Kosongkan bila transaksi tidak memakai skema Division.
 //   EXTERNAL_STORE_ID  : External Shop ID (opsional, tab "Shop")
 //   DANA_CHANNEL_ID    : CHANNEL-ID 1-5 karakter (nilai dashboard DANA: 95221)
 // ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ const NOTIFY_URL = "https://customlink-webhook.modernshopp.workers.dev/api/webho
 const PAGES_ORIGIN = "https://customlink.pages.dev";
 const DEFAULT_CHANNEL_ID = "95221";
 
-// Supabase Connection & Fallback Keys (Kunci aman dimuat dari Cloudflare Secrets)
+// Supabase Connection & Fallback Keys (Kunci rahasia dibaca dari Cloudflare Secrets)
 const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "";
 const DEFAULT_SUPABASE_SERVICE_KEY = "";
@@ -46,7 +47,7 @@ const DEFAULT_SUPABASE_SERVICE_KEY = "";
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status: status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS }
   });
 }
 
@@ -363,11 +364,9 @@ async function handleTrack(request, env, ctx) {
     const eventType = body.eventType || "view";
     const targetId = String(body.targetId || "").trim();
 
-    // Deteksi Perangkat Otomatis via Cloudflare Header
     const cfDevice = (request.headers.get("cf-device-type") || "desktop").toLowerCase();
     const deviceType = (cfDevice === "mobile" || cfDevice === "tablet") ? "mobile" : "desktop";
 
-    // Normalisasi Referrer Domain
     let rawRef = (body.referrer || "direct").toLowerCase();
     let referrer = "direct";
     if (rawRef.includes("instagram.com")) referrer = "instagram";
@@ -376,11 +375,9 @@ async function handleTrack(request, env, ctx) {
     else if (rawRef.includes("facebook.com")) referrer = "facebook";
     else if (rawRef !== "direct" && rawRef !== "") referrer = "other";
 
-    // Deteksi Geolokasi Pengunjung via Edge Cloudflare
     const country = request.cf?.country || request.headers.get("cf-ipcountry") || "ID";
     const city = request.cf?.city || request.headers.get("cf-ipcity") || "Indonesia";
 
-    // Eksekusi RPC ke Supabase di background tanpa menahan response
     const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
     const task = fetch(`${SUPABASE_URL}/rest/v1/rpc/record_analytics_event`, {
       method: "POST",
@@ -440,6 +437,116 @@ async function handleAdminAnalytics(request, env) {
     return jsonResponse(data, 200);
   } catch (err) {
     return jsonResponse({ error: "Kesalahan internal analitik: " + (err && err.message) }, 500);
+  }
+}
+
+// --- Handler: POST /api/check-voucher (Validasi Voucher & Endorse Server-Side) ---
+async function handleCheckVoucher(request, env) {
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
+  if (!serviceKey) return jsonResponse({ valid: false, message: "Kredensial server belum lengkap." }, 500);
+
+  let body;
+  try { body = await request.json(); } catch (e) { return jsonResponse({ valid: false, message: "Payload tidak valid." }, 400); }
+  const code = String(body.code || "").trim().toLowerCase();
+  if (!code) return jsonResponse({ valid: false, message: "Kode voucher kosong." }, 400);
+
+  try {
+    // 1. Cek voucher endorse 100%
+    const endorseRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(code)}&select=*`, {
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    });
+    const endorseList = await endorseRes.json();
+    if (endorseList && endorseList.length > 0) {
+      const v = endorseList[0];
+      if (v.is_used) {
+        return jsonResponse({ valid: false, message: "❌ Voucher endorse ini sudah pernah digunakan!" });
+      }
+      return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
+    }
+
+    // 2. Cek voucher influencer diskon reguler
+    const infRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers?voucher_code=ilike.${encodeURIComponent(code)}&select=discount_percent`, {
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    });
+    const infList = await infRes.json();
+    if (infList && infList.length > 0) {
+      return jsonResponse({ valid: true, type: "influencer", discount_percent: infList[0].discount_percent || 30 });
+    }
+
+    return jsonResponse({ valid: false, message: "❌ Kode voucher tidak ditemukan. Diskon 0%." });
+  } catch (err) {
+    return jsonResponse({ valid: false, message: "Gagal memverifikasi voucher di server." }, 500);
+  }
+}
+
+// --- Handler: POST /api/register-influencer (Registrasi Akun Influencer Aman) ---
+async function handleRegisterInfluencer(request, env) {
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
+  if (!serviceKey) return jsonResponse({ success: false, message: "Kredensial server belum lengkap." }, 500);
+
+  let body;
+  try { body = await request.json(); } catch (e) { return jsonResponse({ success: false, message: "Payload tidak valid." }, 400); }
+
+  const slug = String(body.slug || "").trim().toLowerCase();
+  const voucher = String(body.voucher || "").trim().toUpperCase();
+  const whatsapp = String(body.whatsapp || "").trim();
+  const bankName = String(body.bankName || "").trim();
+  const bankAccount = String(body.bankAccount || "").trim();
+  const bankHolder = String(body.bankHolder || "").trim();
+  const endorseCode = String(body.endorseCode || "").trim().toLowerCase();
+
+  if (!slug || !voucher || !whatsapp || !bankName || !bankAccount || !bankHolder || !endorseCode) {
+    return jsonResponse({ success: false, message: "Semua data form wajib diisi." }, 400);
+  }
+
+  try {
+    // 1. Verifikasi kode endorse masih belum terpakai
+    const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}&is_used=eq.false&select=id`, {
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    });
+    const checkList = await checkRes.json();
+    if (!checkList || checkList.length === 0) {
+      return jsonResponse({ success: false, message: "Voucher endorse tidak sah atau sudah terpakai." }, 400);
+    }
+
+    // 2. Simpan data influencer
+    const insRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers`, {
+      method: "POST",
+      headers: {
+        "apikey": serviceKey,
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify({
+        client_slug: slug,
+        voucher_code: voucher,
+        discount_percent: 30,
+        whatsapp: whatsapp,
+        bank_name: bankName,
+        bank_account: bankAccount,
+        bank_holder: bankHolder
+      })
+    });
+    if (!insRes.ok) {
+      const errTxt = await insRes.text();
+      return jsonResponse({ success: false, message: "Gagal menyimpan: Client Slug mungkin sudah terpakai." }, 400);
+    }
+
+    // 3. Kunci voucher endorse agar tidak bisa dipakai ulang
+    await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}`, {
+      method: "PATCH",
+      headers: {
+        "apikey": serviceKey,
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ is_used: true })
+    });
+
+    return jsonResponse({ success: true, message: "Aktivasi berhasil!" }, 200);
+  } catch (err) {
+    return jsonResponse({ success: false, message: "Kesalahan server saat memproses registrasi." }, 500);
   }
 }
 
@@ -549,6 +656,14 @@ export default {
 
     if (url.pathname === "/api/admin/analytics" && request.method === "GET") {
       return handleAdminAnalytics(request, env);
+    }
+
+    if (url.pathname === "/api/check-voucher" && request.method === "POST") {
+      return handleCheckVoucher(request, env);
+    }
+
+    if (url.pathname === "/api/register-influencer" && request.method === "POST") {
+      return handleRegisterInfluencer(request, env);
     }
 
     if (request.method === "GET") {
