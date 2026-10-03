@@ -314,7 +314,7 @@ async function handleGapuraWebhook(request, env) {
 
   const isUpgrade = String(orderId).startsWith("UPG-") || Boolean(addInfo.isUpgrade);
 
-  // 1. JIKA INI TRANSAKSI UPGRADE PAKET
+  // 1. TRANSAKSI UPGRADE PAKET
   if (isUpgrade) {
     let clientSlug = addInfo.clientSlug;
     if (!clientSlug && String(orderId).startsWith("UPG-")) {
@@ -354,7 +354,7 @@ async function handleGapuraWebhook(request, env) {
         return jsonResponse({ status: "ERROR", message: "Gagal memproses upgrade di Supabase: " + errTxt }, 502);
       }
 
-      // Hapus Edge Cache katalog untuk toko ini agar limit baru langsung tampil
+      // Hapus Edge Cache katalog untuk toko ini
       try {
         const cache = caches.default;
         const cacheUrl = new URL(PAGES_ORIGIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug));
@@ -367,7 +367,7 @@ async function handleGapuraWebhook(request, env) {
     }
   }
 
-  // 2. JIKA INI PENDAFTARAN KLIEN BARU
+  // 2. PENDAFTARAN KLIEN BARU
   const clientSlug = generateSlug(customerName, orderId);
 
   try {
@@ -398,7 +398,7 @@ async function handleGapuraWebhook(request, env) {
   }
 }
 
-// --- Helper Auto-Scraper: Pembersih Teks & Pengurai Slug URL ---
+// --- Helper Auto-Scraper: Pembersih Teks & Pengurai Slug URL Cerdas ---
 function decodeHtmlEntities(str) {
   if (!str) return "";
   return str
@@ -415,6 +415,10 @@ function extractTitleFromUrlSlug(urlStr) {
   if (!urlStr) return "";
   try {
     const u = new URL(urlStr);
+    // Abaikan domain shortlink agar kode acak TIDAK PERNAH dijadikan judul
+    if (u.hostname.includes("s.shopee.co.id") || u.hostname.includes("vt.tiktok.com") || u.hostname.includes("tokopedia.link")) {
+      return "";
+    }
     const segments = u.pathname.split("/").filter(Boolean);
     for (const seg of segments) {
       if (seg.includes("-i.")) {
@@ -422,9 +426,10 @@ function extractTitleFromUrlSlug(urlStr) {
         clean = decodeURIComponent(clean).replace(/-/g, " ").replace(/\s+/g, " ").trim();
         if (clean.length > 3) return clean;
       }
-      if (seg.length > 5 && !['product', 'item', 'universal-link', 'p', 'share', 'm'].includes(seg.toLowerCase())) {
+      // Hanya terima segmen yang memiliki tanda hubung (-) dan bukan ID tunggal
+      if (seg.includes("-") && seg.length > 8 && !['universal-link', 'product', 'share', 'item'].includes(seg.toLowerCase())) {
         let clean = decodeURIComponent(seg).replace(/-/g, " ").replace(/\s+/g, " ").trim();
-        if (clean.length > 5 && !/^\d+$/.test(clean)) {
+        if (!/^[a-zA-Z0-9]+$/.test(seg) && clean.length > 6) {
           return clean;
         }
       }
@@ -467,7 +472,22 @@ async function handleScrapeProduct(request) {
     let finalUrl = response.url || targetUrl;
     let html = await response.text();
 
-    // 1. Ekstrak Judul Produk
+    // Jika shortlink mengarah ke universal-link, cari link produk asli di dalamnya
+    const redirMatch = html.match(/(?:redir|target|destination)=([a-zA-Z0-9%_\-\.\/\:\?\=\&]+)/i);
+    if (redirMatch && redirMatch[1]) {
+      try {
+        const decodedRedir = decodeURIComponent(redirMatch[1]);
+        if (/^https?:\/\//i.test(decodedRedir) && !decodedRedir.includes("s.shopee.co.id")) {
+          finalUrl = decodedRedir;
+          const secondResp = await fetch(decodedRedir, { headers: headersList, redirect: "follow" });
+          if (secondResp.ok) {
+            html = await secondResp.text();
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 1. Ekstrak Judul Produk dari Meta Tags
     let title = "";
     const ogTitleMatch = html.match(/<meta[^>]+property=["'](?:og:title|twitter:title)["'][^>]+content=["']([^"']+)["']/i) ||
                          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:title|twitter:title)["']/i) ||
@@ -492,7 +512,7 @@ async function handleScrapeProduct(request) {
       price = ogPriceMatch[1].replace(/[^\d]/g, "");
     }
 
-    // LAPISAN 2: JSON-LD Structured Data
+    // 4. Cadangan: JSON-LD Structured Data
     if (!title || !imageUrl || !price) {
       const jsonLdMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
       if (jsonLdMatch) {
@@ -510,18 +530,12 @@ async function handleScrapeProduct(request) {
       }
     }
 
-    // LAPISAN 3: Canonical Link & Meta Refresh URL Resolver
-    if (!title || !imageUrl) {
-      const canonicalMatch = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
-      const refreshMatch = html.match(/url=([^"'>\s;]+)/i);
-      const detectedRedirectUrl = (canonicalMatch && canonicalMatch[1]) || (refreshMatch && refreshMatch[1]) || "";
-
-      if (!title) {
-        title = extractTitleFromUrlSlug(detectedRedirectUrl) || extractTitleFromUrlSlug(finalUrl) || extractTitleFromUrlSlug(targetUrl);
-      }
+    // 5. Cadangan: URL Slug Resolver
+    if (!title) {
+      title = extractTitleFromUrlSlug(finalUrl);
     }
 
-    // LAPISAN 4: Pemindaian CDN Shopee / TikTok jika gambar tersembunyi
+    // 6. Cadangan: Deteksi Gambar CDN Shopee/TikTok
     if (!imageUrl) {
       const cdnMatch = html.match(/https:\/\/(?:down-id\.img\.susercontent\.com|cf\.shopee\.co\.id\/file|p16-va\.tiktokcdn\.com)\/[a-zA-Z0-9_\-\.\/]+/i);
       if (cdnMatch) {
@@ -529,7 +543,7 @@ async function handleScrapeProduct(request) {
       }
     }
 
-    // LAPISAN 5: Deteksi Regex Harga Cadangan
+    // 7. Cadangan: Regex Deteksi Format Rupiah
     if (!price) {
       const rpMatch = html.match(/Rp\s*([\d\.,]+)/i);
       if (rpMatch) {
@@ -537,6 +551,7 @@ async function handleScrapeProduct(request) {
       }
     }
 
+    // Pembersihan Judul
     if (title) {
       title = decodeHtmlEntities(title)
         .replace(/\s*\|\s*(Shopee|Tokopedia|TikTok Shop|TikTok|Lazada).*/gi, "")
@@ -544,7 +559,11 @@ async function handleScrapeProduct(request) {
         .trim();
     }
 
-    // Jika setidaknya judul atau gambar berhasil ditemukan, kirimkan hasil
+    // Validasi Anti-Hash: Batalkan judul jika hanya berupa kode unik acak
+    if (title && (title === "qjypxEMyj" || /^[a-zA-Z0-9]{7,15}$/.test(title))) {
+      title = "";
+    }
+
     if (title || imageUrl) {
       return jsonResponse({
         success: true,
@@ -558,13 +577,13 @@ async function handleScrapeProduct(request) {
 
     return jsonResponse({
       success: false,
-      message: "Halaman tujuan membatasi akses perayap otomatis. Silakan masukkan nama dan foto produk secara manual."
+      message: "Marketplace memproteksi link pendek ini dari bot. Silakan ketik nama dan upload foto secara manual."
     }, 422);
 
   } catch (err) {
     return jsonResponse({
       success: false,
-      message: "Gagal terhubung ke tautan produk: " + (err && err.message)
+      message: "Gagal memproses link produk: " + (err && err.message)
     }, 500);
   }
 }
