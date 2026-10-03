@@ -367,6 +367,7 @@
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
         
         let currentSlug = "";
+        let currentAuthPin = "";
         let settingsData = {};
         let productsData = [];
         let originalSettings = {};
@@ -536,14 +537,12 @@
         function renderAnalytics(data) {
             if (!data) return;
 
-            // 1. Render Summary Cards
             const s = data.summary || {};
             document.getElementById("metric-views").textContent = (s.views || 0).toLocaleString("id-ID");
             document.getElementById("metric-clicks").textContent = (s.product_clicks || 0).toLocaleString("id-ID");
             document.getElementById("metric-socials").textContent = (s.social_clicks || 0).toLocaleString("id-ID");
             document.getElementById("metric-ctr").textContent = `${s.ctr || 0}%`;
 
-            // 2. Render 7-Day Interactive Trend Bar Chart
             const chartEl = document.getElementById("analytics-chart");
             const labelsEl = document.getElementById("analytics-chart-labels");
             const trends = data.trends || [];
@@ -579,7 +578,6 @@
                 labelsEl.innerHTML = "";
             }
 
-            // 3. Render Top Performing Products
             const topProducts = data.top_products || [];
             const topListEl = document.getElementById("top-products-list");
             if (topProducts.length > 0) {
@@ -605,7 +603,6 @@
                 topListEl.innerHTML = `<p class="text-gray-400 italic text-xs">Belum ada klik produk dalam 7 hari terakhir.</p>`;
             }
 
-            // 4. Render Device Breakdown
             const devices = data.devices || {};
             const mobileCount = devices.mobile || 0;
             const desktopCount = devices.desktop || 0;
@@ -620,7 +617,6 @@
             document.getElementById("bar-device-mobile").style.width = `${mobilePct}%`;
             document.getElementById("bar-device-desktop").style.width = `${desktopPct}%`;
 
-            // 5. Render Top Referrers
             const referrers = data.referrers || {};
             const refList = document.getElementById("referrers-list");
             const refKeys = Object.keys(referrers);
@@ -645,7 +641,6 @@
                 refList.innerHTML = `<p class="text-gray-400 italic text-[10px]">Belum ada trafik masuk</p>`;
             }
 
-            // 6. Render Geolocation (Persebaran Kota & Negara)
             const locations = data.locations || [];
             const locListEl = document.getElementById("locations-list");
             if (locations.length > 0) {
@@ -730,43 +725,6 @@
             }
             container.innerHTML = productsData.slice(0, maxLimit).map((p, i) => createProductCard(p, i)).join("");
         }
-        
-        async function loadSettings(slug) {
-            const { data, error } = await sbClient.from("settings").select("*").eq("client_slug", slug).single();
-            if (error && error.code !== "PGRST116") throw error;
-            return data || null;
-        }
-        
-        async function loadProducts(slug) {
-            const { data, error } = await sbClient.from("products").select("*").eq("client_slug", slug).order("sort_order");
-            if (error) throw error;
-            return data || [];
-        }
-
-        async function checkInfluencerStatus(slug) {
-            const infSection = document.getElementById("influencer-section");
-            try {
-                const { data, error } = await sbClient
-                    .from("influencers")
-                    .select("*")
-                    .eq("client_slug", slug)
-                    .single();
-
-                if (data) {
-                    influencerData = data;
-                    infSection.classList.remove("hidden");
-                    document.getElementById("influencer_voucher_code").value = data.voucher_code || "";
-                    document.getElementById("locked_discount_val").textContent = (data.discount_percent || 30) + "%";
-                    loadInfluencerStats(data.voucher_code);
-                } else {
-                    influencerData = null;
-                    infSection.classList.add("hidden");
-                }
-            } catch (err) {
-                influencerData = null;
-                infSection.classList.add("hidden");
-            }
-        }
 
         async function loadInfluencerStats(voucherCode) {
             if (!voucherCode) return;
@@ -795,23 +753,6 @@
             }
         }
         
-        async function loadAllData(slug) {
-            settingsData = await loadSettings(slug) || { client_slug: slug, max_products: 10 };
-            originalSettings = { ...settingsData };
-            productsData = await loadProducts(slug);
-            originalProducts = JSON.parse(JSON.stringify(productsData));
-            
-            const maxLimit = settingsData.max_products || 10;
-            while (productsData.length < maxLimit) {
-                productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
-            }
-
-            await Promise.all([
-                checkInfluencerStatus(slug),
-                loadAnalytics(slug)
-            ]);
-        }
-        
         function populateForm() {
             document.getElementById("current-slug").textContent = currentSlug;
             document.getElementById("profile_name").value = settingsData.profile_name || "";
@@ -836,8 +777,22 @@
                 b.innerHTML = "";
             }
             renderProductCards();
+
+            // Set data influencer jika terdaftar
+            const infSection = document.getElementById("influencer-section");
+            if (influencerData) {
+                infSection.classList.remove("hidden");
+                document.getElementById("influencer_voucher_code").value = influencerData.voucher_code || "";
+                document.getElementById("locked_discount_val").textContent = (influencerData.discount_percent || 30) + "%";
+                loadInfluencerStats(influencerData.voucher_code);
+            } else {
+                infSection.classList.add("hidden");
+            }
         }
 
+        // ==========================================
+        // LOGIN ADMIN AMAN VIA RPC (SERVER-SIDE)
+        // ==========================================
         async function handleLogin() {
             const slug = document.getElementById("login-slug").value.trim() || "default";
             const pin = document.getElementById("login-pin").value;
@@ -850,23 +805,40 @@
             errorEl.classList.add("hidden");
             
             try {
-                const settings = await loadSettings(slug);
-                const storedPin = settings?.admin_pin || "123456";
-                
-                if (pin === storedPin) {
+                // Eksekusi fungsi server-side verifikasi PIN
+                const { data, error } = await sbClient.rpc("verify_admin_login", {
+                    p_slug: slug,
+                    p_pin: pin
+                });
+
+                if (error) throw error;
+
+                if (data && data.success === true) {
                     currentSlug = slug;
-                    await loadAllData(slug);
+                    currentAuthPin = pin;
+                    settingsData = data.settings || { client_slug: slug, max_products: 10 };
+                    originalSettings = { ...settingsData };
+                    productsData = data.products || [];
+                    originalProducts = JSON.parse(JSON.stringify(productsData));
+                    influencerData = data.influencer || null;
+
+                    const maxLimit = settingsData.max_products || 10;
+                    while (productsData.length < maxLimit) {
+                        productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
+                    }
+
                     populateForm();
-                    sessionStorage.setItem("admin_session", JSON.stringify({ slug, authenticated: true }));
+                    loadAnalytics(slug);
+                    sessionStorage.setItem("admin_session", JSON.stringify({ slug, pin, authenticated: true }));
                     showSection("dashboard-section");
                 } else {
                     errorEl.classList.remove("hidden");
-                    errorEl.textContent = "PIN yang Anda masukkan salah. Silakan coba lagi.";
+                    errorEl.textContent = (data && data.message) || "PIN yang Anda masukkan salah. Silakan coba lagi.";
                 }
             } catch (err) {
                 console.error("Login error:", err);
                 errorEl.classList.remove("hidden");
-                errorEl.textContent = "Terjadi kesalahan. Pastikan client slug valid.";
+                errorEl.textContent = "Terjadi kesalahan saat otentikasi server.";
             } finally {
                 btn.disabled = false;
                 spinner.classList.add("hidden");
@@ -876,6 +848,7 @@
         function handleLogout() {
             sessionStorage.removeItem("admin_session");
             currentSlug = "";
+            currentAuthPin = "";
             settingsData = {};
             productsData = [];
             influencerData = null;
@@ -889,6 +862,9 @@
             window.open(`${cleanOrigin}/${currentSlug}`, "_blank");
         }
         
+        // ==========================================
+        // SIMPAN PERUBAHAN AMAN VIA RPC (SERVER-SIDE)
+        // ==========================================
         async function handleSave() {
             const btn = document.getElementById("save-btn");
             const spinner = document.getElementById("save-spinner");
@@ -930,7 +906,6 @@
                 }
                 
                 const settingsPayload = {
-                    client_slug: currentSlug,
                     profile_name: document.getElementById("profile_name").value,
                     hero_title: document.getElementById("hero_title").value,
                     hero_subtitle: document.getElementById("hero_subtitle").value,
@@ -942,26 +917,12 @@
                     whatsapp_link: document.getElementById("whatsapp_link").value,
                     whatsapp_active: document.getElementById("whatsapp_active").checked,
                     profile_image_url: profileImageUrl,
-                    background_url: backgroundUrl,
-                    updated_at: new Date().toISOString()
+                    background_url: backgroundUrl
                 };
-                
-                if (newPin) settingsPayload.admin_pin = newPin;
-                
-                const { error: settingsError } = await sbClient.from("settings").upsert(settingsPayload, { onConflict: "client_slug" });
-                if (settingsError) throw settingsError;
 
-                if (influencerData) {
-                    const newVoucherCode = document.getElementById("influencer_voucher_code").value.trim().toUpperCase();
-                    if (newVoucherCode) {
-                        await sbClient
-                            .from("influencers")
-                            .update({ voucher_code: newVoucherCode })
-                            .eq("client_slug", currentSlug);
-                    }
-                }
-                
                 const maxLimit = settingsData.max_products || 10;
+                const productsPayload = [];
+
                 for (let i = 0; i < maxLimit; i++) {
                     const id = document.getElementById(`product_id_${i}`).value;
                     const title = document.getElementById(`title_${i}`).value.trim();
@@ -972,56 +933,68 @@
                     const imgInput = document.getElementById(`img_${i}`);
                     const originalImg = document.getElementById(`original_img_${i}`).value;
                     
-                    if (!title && !link && !price && !imgInput.files[0]) {
-                        const existingInDb = originalProducts.find(p => p.sort_order === sortOrder);
-                        if (existingInDb && existingInDb.id) {
-                            if (existingInDb.image_url) await deleteImage(existingInDb.image_url);
-                            await cleanupOldStorageFiles(`product_${currentSlug}_${sortOrder}`);
-                            await sbClient.from("products").delete().eq("id", existingInDb.id);
-                        }
-                        continue;
-                    }
-                    
                     let imageUrl = originalImg;
                     if (imgInput.files[0]) {
-                        if (originalImg) {
-                            await deleteImage(originalImg);
-                        }
-                        const productPrefix = `product_${currentSlug}_${sortOrder}`;
-                        imageUrl = await uploadImage(imgInput.files[0], productPrefix);
+                        if (originalImg) await deleteImage(originalImg);
+                        imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`);
                     }
-                    
-                    const existingProduct = originalProducts.find(p => p.sort_order === sortOrder);
-                    
-                    const productPayload = {
-                        client_slug: currentSlug,
+
+                    productsPayload.push({
+                        id: id || null,
                         title: title,
                         price: price,
                         affiliate_link: link,
                         image_url: imageUrl,
                         sort_order: sortOrder,
                         is_active: isActive
-                    };
-                    
-                    if (existingProduct && existingProduct.id) {
-                        productPayload.id = existingProduct.id;
-                    } else if (id) {
-                        productPayload.id = id;
-                    }
-                    
-                    const { error: productError } = await sbClient.from("products").upsert(productPayload);
-                    if (productError) console.error("Product save error:", productError);
+                    });
                 }
-                
-                showToast("success", "Berhasil!", "Perubahan telah disimpan dengan bersih");
-                await loadAllData(currentSlug);
+
+                let voucherToUpdate = "";
+                if (influencerData) {
+                    voucherToUpdate = document.getElementById("influencer_voucher_code").value.trim().toUpperCase();
+                }
+
+                // Kirim seluruh pembaruan lewat fungsi RPC aman di database
+                const { data: saveResult, error: saveError } = await sbClient.rpc("save_admin_data", {
+                    p_slug: currentSlug,
+                    p_current_pin: currentAuthPin,
+                    p_new_pin: newPin || "",
+                    p_settings: settingsPayload,
+                    p_products: productsPayload,
+                    p_influencer_voucher: voucherToUpdate
+                });
+
+                if (saveError) throw saveError;
+                if (!saveResult.success) throw new Error(saveResult.message);
+
+                if (newPin) {
+                    currentAuthPin = newPin;
+                    sessionStorage.setItem("admin_session", JSON.stringify({ slug: currentSlug, pin: newPin, authenticated: true }));
+                }
+
+                showToast("success", "Berhasil!", "Perubahan telah disimpan dengan aman");
                 document.getElementById("new_pin").value = "";
                 document.getElementById("confirm_pin").value = "";
-                
+
+                // Refresh data terbaru via RPC
+                const refreshRes = await sbClient.rpc("verify_admin_login", {
+                    p_slug: currentSlug,
+                    p_pin: currentAuthPin
+                });
+                if (refreshRes.data?.success) {
+                    settingsData = refreshRes.data.settings;
+                    originalSettings = { ...settingsData };
+                    productsData = refreshRes.data.products;
+                    originalProducts = JSON.parse(JSON.stringify(productsData));
+                    influencerData = refreshRes.data.influencer;
+                    populateForm();
+                }
+
             } catch (err) {
                 console.error("Save error:", err);
                 if (err.message !== "PIN mismatch" && err.message !== "PIN too short") {
-                    showToast("error", "Gagal", "Terjadi kesalahan saat menyimpan");
+                    showToast("error", "Gagal", err.message || "Terjadi kesalahan saat menyimpan");
                 }
             } finally {
                 btn.disabled = false;
@@ -1033,15 +1006,24 @@
         document.addEventListener("DOMContentLoaded", () => {
             const session = sessionStorage.getItem("admin_session");
             if (session) {
-                const { slug, authenticated } = JSON.parse(session);
-                if (authenticated) {
-                    currentSlug = slug;
-                    loadAllData(slug).then(() => {
-                        populateForm();
-                        showSection("dashboard-section");
-                    }).catch(() => {
-                        showSection("login-section");
-                    });
+                const { slug, pin, authenticated } = JSON.parse(session);
+                if (authenticated && pin) {
+                    sbClient.rpc("verify_admin_login", { p_slug: slug, p_pin: pin }).then(({ data, error }) => {
+                        if (!error && data?.success) {
+                            currentSlug = slug;
+                            currentAuthPin = pin;
+                            settingsData = data.settings;
+                            originalSettings = { ...settingsData };
+                            productsData = data.products;
+                            originalProducts = JSON.parse(JSON.stringify(productsData));
+                            influencerData = data.influencer;
+                            populateForm();
+                            loadAnalytics(slug);
+                            showSection("dashboard-section");
+                        } else {
+                            handleLogout();
+                        }
+                    }).catch(() => handleLogout());
                 } else {
                     showSection("login-section");
                 }
