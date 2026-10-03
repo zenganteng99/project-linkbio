@@ -1,9 +1,10 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Auto-Scraper
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
 //   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID)
 //   POST    /api/create-payment     -> Buat transaksi pembayaran DANA SNAP (Order Baru & Upgrade)
 //   POST    /api/webhook/gapura     -> Auto-aktivasi klien & Auto-Upgrade paket setelah pembayaran sukses
+//   POST    /api/scrape-product     -> Ekstrak otomatis metadata produk dari link affiliate (Shopee/TikTok/Tokopedia)
 //   POST    /api/track              -> Ingestion pelacakan analitik pengunjung & klik (Non-blocking)
 //   GET     /api/admin/analytics    -> Penarikan ringkasan data analitik 7 hari untuk admin (Cache 60s)
 //   POST    /api/check-voucher      -> Validasi kode voucher & endorse secara aman (Server-Side)
@@ -397,6 +398,96 @@ async function handleGapuraWebhook(request, env) {
   }
 }
 
+// --- Handler: POST /api/scrape-product (Auto-Extract Shopee/TikTok/Tokopedia) ---
+async function handleScrapeProduct(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return jsonResponse({ success: false, message: "Payload JSON tidak valid." }, 400);
+  }
+
+  let targetUrl = String(body.url || "").trim();
+  if (!targetUrl) {
+    return jsonResponse({ success: false, message: "URL produk tidak boleh kosong." }, 400);
+  }
+
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = "https://" + targetUrl;
+  }
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
+      },
+      redirect: "follow"
+    });
+
+    const html = await response.text();
+
+    // 1. Ekstrak Judul Produk
+    let title = "";
+    const ogTitleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (ogTitleMatch) {
+      title = ogTitleMatch[1]
+        .replace(/\s*\|\s*(Shopee|Tokopedia|TikTok Shop|TikTok|Lazada).*/gi, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .trim();
+    }
+
+    // 2. Ekstrak Foto Produk
+    let imageUrl = "";
+    const ogImageMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+    if (ogImageMatch) {
+      imageUrl = ogImageMatch[1].trim();
+    }
+
+    // 3. Ekstrak Harga (Jika Tersedia)
+    let price = "";
+    const ogPriceMatch = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
+    if (ogPriceMatch) {
+      price = ogPriceMatch[1].replace(/[^\d]/g, "");
+    } else {
+      const rpMatch = html.match(/Rp\s*([\d\.,]+)/i);
+      if (rpMatch) {
+        price = rpMatch[1].replace(/[^\d]/g, "");
+      }
+    }
+
+    if (!title && !imageUrl) {
+      return jsonResponse({
+        success: false,
+        message: "Halaman tidak menyediakan tag OpenGraph publik. Silakan masukkan data manual."
+      }, 422);
+    }
+
+    return jsonResponse({
+      success: true,
+      data: {
+        title: title.slice(0, 150),
+        imageUrl: imageUrl,
+        price: price
+      }
+    }, 200);
+
+  } catch (err) {
+    return jsonResponse({
+      success: false,
+      message: "Gagal terhubung ke tautan produk: " + (err && err.message)
+    }, 500);
+  }
+}
+
 // --- Handler: POST /api/track (Analytics Ingestion Non-blocking) ---
 async function handleTrack(request, env, ctx) {
   const ua = request.headers.get("user-agent") || "";
@@ -497,7 +588,7 @@ async function handleAdminAnalytics(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID) ---
+// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID & Max Products) ---
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
@@ -739,6 +830,10 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    if (url.pathname === "/api/scrape-product" && request.method === "POST") {
+      return handleScrapeProduct(request);
     }
 
     if (url.pathname === "/api/public/store" && request.method === "GET") {
