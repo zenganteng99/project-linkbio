@@ -65,7 +65,26 @@
                 <p id="hero-title" class="text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90"></p>
                 <p id="hero-subtitle" class="text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light"></p>
             </div>
+
+            <!-- FITUR LIVE SELLING: BILAH PENCARIAN NOMOR ETALASE & PRODUK -->
+            <div class="mb-5 relative" id="search-bar-wrapper">
+                <div class="relative">
+                    <input type="text" id="product-search" placeholder="🔍 Cari etalase #nomor atau nama produk..." 
+                        class="w-full pl-10 pr-10 py-3.5 bg-white/95 backdrop-blur-md border border-white/50 rounded-2xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 shadow-xl transition-all">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <button id="clear-search-btn" onclick="clearSearch()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 hidden">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between px-1.5 mt-1.5">
+                    <p id="search-result-count" class="text-[11px] text-white/70 font-medium hidden"></p>
+                    <span class="text-[10px] text-white/50 ml-auto" id="search-hint">💡 Ketik nomor untuk spill etalase</span>
+                </div>
+            </div>
             
+            <!-- DAFTAR KARTU PRODUK BERNOMOR -->
             <div id="products-container" class="space-y-4 min-h-[400px]"></div>
 
             <div id="social-container" class="mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap"></div>
@@ -80,6 +99,8 @@
         const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
         const TRACK_ENDPOINT = `${WORKER_ORIGIN}/api/track`;
         const STORE_ENDPOINT = `${WORKER_ORIGIN}/api/public/store`;
+
+        let globalProducts = [];
         
         function getSlug() { 
             const params = new URLSearchParams(location.search);
@@ -97,7 +118,6 @@
             return "default"; 
         }
 
-        // --- SISTEM PELACAK ANALITIK INTERNAL ---
         function sendEvent(eventType, targetId = "") {
             try {
                 const currentSlug = getSlug();
@@ -130,11 +150,9 @@
             return isNaN(n) ? 0 : n;
         }
 
-        // --- SISTEM INJEKSI TRACKING PIXEL (META, TIKTOK, GOOGLE ANALYTICS) ---
         function initTrackingPixels(settings) {
             if (!settings) return;
 
-            // 1. Meta (Facebook) Pixel
             const fbId = (settings.fb_pixel_id || "").trim();
             if (fbId && !window._fbq_loaded) {
                 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -148,7 +166,6 @@
                 window._fbq_loaded = true;
             }
 
-            // 2. TikTok Pixel
             const ttId = (settings.tiktok_pixel_id || "").trim();
             if (ttId && !window._ttq_loaded) {
                 !function (w, d, t) {
@@ -159,7 +176,6 @@
                 window._ttq_loaded = true;
             }
 
-            // 3. Google Analytics / Google Tag Manager
             const gaId = (settings.google_analytics_id || "").trim();
             if (gaId) {
                 if (gaId.toUpperCase().startsWith('GTM-') && !window._gtm_loaded) {
@@ -185,7 +201,6 @@
             }
         }
 
-        // Tembakkan event konversi klik iklan ke Pixel Meta, TikTok, dan GA
         function trackPixelProductClick(title, price) {
             const numPrice = extractNumericPrice(price);
 
@@ -214,7 +229,6 @@
             }
         }
         
-        // --- AMBIL KATALOG TOKO DARI CLOUDFLARE EDGE CACHE (<15ms) ---
         async function fetchStoreData(slug) {
             try {
                 const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}`);
@@ -255,6 +269,8 @@
                 const footerCredit = document.getElementById("footer-credit");
                 const footerBrand = document.getElementById("footer-brand");
                 const socialContainer = document.getElementById("social-container");
+                const searchCountEl = document.getElementById("search-result-count");
+                const searchHintEl = document.getElementById("search-hint");
                 
                 bodyEl.className = "min-h-screen antialiased selection:bg-pink-500 selection:text-white ";
                 const theme = s.theme_style || 'gradient-purple';
@@ -268,6 +284,8 @@
                     socialContainer.className = "mt-10 pt-6 border-t border-gray-900/10 flex justify-center gap-4 flex-wrap";
                     footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-gray-600";
                     footerBrand.className = "font-semibold text-gray-900";
+                    if (searchCountEl) searchCountEl.className = "text-[11px] text-gray-600 font-medium hidden";
+                    if (searchHintEl) searchHintEl.className = "text-[10px] text-gray-500 ml-auto";
                 } else {
                     profileInfoEl.classList.remove('text-gray-900');
                     profileInfoEl.classList.add('text-white');
@@ -276,6 +294,8 @@
                     socialContainer.className = "mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap";
                     footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-white/40";
                     footerBrand.className = "font-semibold text-white/70";
+                    if (searchCountEl) searchCountEl.className = "text-[11px] text-white/70 font-medium hidden";
+                    if (searchHintEl) searchHintEl.className = "text-[10px] text-white/50 ml-auto";
                 }
                 renderSocialLinks(s, theme);
                 initTrackingPixels(s);
@@ -303,20 +323,34 @@
             container.classList.toggle('hidden', html === '');
         }
         
+        // RENDER KARTU PRODUK BERNOMOR LENGKAP (#1, #2, dst.)
         function renderProducts(ps) {
             const c = document.getElementById("products-container");
             if (!ps || !ps.length) { 
-                c.innerHTML = '<p class="text-center text-gray-500 text-sm font-medium">Belum ada produk aktif.</p>'; 
+                c.innerHTML = `
+                    <div class="text-center py-12 px-4 glass-card rounded-2xl">
+                        <div class="text-3xl mb-2">🔍</div>
+                        <p class="font-bold text-sm text-gray-800">Produk tidak ditemukan</p>
+                        <p class="text-xs text-gray-500 mt-1">Coba cari dengan nomor etalase atau kata kunci lain.</p>
+                        <button onclick="clearSearch()" class="mt-4 px-4 py-2 bg-pink-500 text-white rounded-xl text-xs font-bold hover:bg-pink-600 transition-all shadow">Tampilkan Semua Produk</button>
+                    </div>
+                `; 
                 return; 
             }
-            c.innerHTML = ps.map((p, i) => {
-                const badge = i < 3 ? '<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #' + (i + 1) + '</div>' : '';
+
+            c.innerHTML = ps.map((p) => {
+                const num = p._itemNumber;
+                
+                // Top 3 = Gold/Pink Gradient, Slot 4+ = Dark Obsidian Glass Badge
+                const badge = num <= 3 
+                    ? `<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #${num}</div>`
+                    : `<div class="absolute -top-2.5 -left-2.5 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-10 border border-white/30 tracking-wider">#${num}</div>`;
                 
                 const imgHtml = p.image_url 
                     ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">📦</div>`
                     : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">📦</div>`;
 
-                const productIdentifier = p.id || p.title || ('prod-' + (i + 1));
+                const productIdentifier = p.id || p.title || ('prod-' + num);
                 const safeTitle = (p.title || '').replace(/"/g, '&quot;');
                 const rawPrice = p.price || '';
 
@@ -337,6 +371,48 @@
                 </div>`;
             }).join("");
         }
+
+        // SISTEM PENCARIAN REAL-TIME
+        function setupSearch() {
+            const searchInput = document.getElementById("product-search");
+            const clearBtn = document.getElementById("clear-search-btn");
+            const countEl = document.getElementById("search-result-count");
+            if (!searchInput) return;
+
+            searchInput.addEventListener("input", (e) => {
+                const query = e.target.value.trim().toLowerCase();
+                if (!query) {
+                    clearBtn.classList.add("hidden");
+                    countEl.classList.add("hidden");
+                    renderProducts(globalProducts);
+                    return;
+                }
+
+                clearBtn.classList.remove("hidden");
+                const cleanNum = query.replace(/[^0-9]/g, "");
+
+                const filtered = globalProducts.filter(p => {
+                    // 1. Cocokkan nomor etalase (ketik '5' atau '#5' akan menampilkan produk #5)
+                    const matchNum = cleanNum && String(p._itemNumber) === cleanNum;
+                    // 2. Cocokkan kata kunci di judul produk
+                    const matchTitle = (p.title || "").toLowerCase().includes(query);
+                    return matchNum || matchTitle;
+                });
+
+                countEl.textContent = `Ditemukan ${filtered.length} dari ${globalProducts.length} etalase`;
+                countEl.classList.remove("hidden");
+                renderProducts(filtered);
+            });
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById("product-search");
+            if (searchInput) {
+                searchInput.value = "";
+                searchInput.dispatchEvent(new Event("input"));
+                searchInput.focus();
+            }
+        }
         
         async function init() {
             const slug = getSlug();
@@ -345,6 +421,7 @@
                 document.title = "Bio Link - " + slug;
             }
 
+            setupSearch();
             sendEvent("view");
 
             const cacheKey = `bio_cache_${slug}`;
@@ -353,8 +430,8 @@
             if (cachedData) {
                 try {
                     const { settings, products } = JSON.parse(cachedData);
+                    prepareAndRenderProducts(products);
                     renderHero(settings);
-                    renderProducts(products);
                     backgroundSync(slug, cacheKey);
                     return;
                 } catch (e) {
@@ -364,19 +441,29 @@
             await loadAndRender(slug, cacheKey);
         }
 
+        function prepareAndRenderProducts(products) {
+            // Berikan nomor urut permanen ke setiap produk
+            globalProducts = (products || []).map((p, idx) => ({
+                ...p,
+                _itemNumber: idx + 1
+            }));
+            renderProducts(globalProducts);
+        }
+
         async function loadAndRender(slug, cacheKey) {
             const data = await fetchStoreData(slug);
             const settings = data.settings;
             const products = data.products || [];
             try { sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products })); } catch (e) {}
+            prepareAndRenderProducts(products);
             renderHero(settings);
-            renderProducts(products);
         }
 
         async function backgroundSync(slug, cacheKey) {
             try {
                 const data = await fetchStoreData(slug);
                 sessionStorage.setItem(cacheKey, JSON.stringify({ settings: data.settings, products: data.products || [] }));
+                prepareAndRenderProducts(data.products || []);
                 if (data.settings) initTrackingPixels(data.settings);
             } catch (e) {}
         }
@@ -390,10 +477,7 @@
                 const pTitle = productEl.getAttribute("data-product-title") || "Produk";
                 const pPrice = productEl.getAttribute("data-product-price") || "0";
 
-                // 1. Tembak analitik internal sistem
                 sendEvent("product_click", targetId);
-
-                // 2. Tembak event konversi iklan ke Meta, TikTok, dan Google Ads/GA
                 trackPixelProductClick(pTitle, pPrice);
                 return;
             }
