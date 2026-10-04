@@ -529,7 +529,7 @@
             <div class="space-y-4 text-left">
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Client Slug (Nama Unik Toko/Admin)</label>
-                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '')" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
                     <p class="text-[10px] text-gray-500 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
                 </div>
                 <div>
@@ -735,7 +735,13 @@
 
         // --- MENYIMPAN DATA INFLUENCER SECARA AMAN VIA WORKER ---
         async function submitInfluencerData() {
-            const slug = document.getElementById('inf_slug').value.trim().toLowerCase();
+            const rawSlug = document.getElementById('inf_slug').value;
+const slug = rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
+if (rawSlug !== slug) {
+    alert('Slug hanya boleh menggunakan huruf kecil, angka, dan tanda hubung (tanpa spasi). Sistem telah mengoreksinya otomatis.');
+    document.getElementById('inf_slug').value = slug;
+    return;
+}
             const voucher = document.getElementById('inf_voucher').value.trim().toUpperCase();
             const whatsapp = document.getElementById('inf_whatsapp').value.trim();
             const bankName = document.getElementById('inf_bank_name').value.trim();
@@ -767,7 +773,7 @@
                 if (result.success === true) {
                     alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
                     document.getElementById('influencerModal').classList.add('hidden');
-                    window.location.href = `admin.html?slug=${slug}`;
+                    window.location.href = `admin.html?slug=${slug}&new=1`;
                 } else {
                     alert('Gagal aktivasi: ' + (result.message || 'Silakan coba lagi.'));
                 }

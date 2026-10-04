@@ -1338,6 +1338,18 @@
         
         document.addEventListener("DOMContentLoaded", () => {
             const urlParams = new URLSearchParams(window.location.search);
+            
+            // --- FITUR AUTO-FILL SLUG DARI URL ---
+            const prefilledSlug = urlParams.get("slug");
+            if (prefilledSlug) {
+                document.getElementById("login-slug").value = prefilledSlug;
+            }
+            
+            if (urlParams.get("new") === "1") {
+                showToast("success", "Registrasi Berhasil!", "Silakan masukkan PIN Anda untuk mengatur toko baru.");
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            // ---------------------------------------
             if (urlParams.get("upgrade_success") === "1") {
                 showToast("success", "Upgrade Berhasil!", "Paket toko dan slot produk Anda telah ditingkatkan!");
                 window.history.replaceState({}, document.title, window.location.pathname);
