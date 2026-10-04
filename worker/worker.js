@@ -1009,6 +1009,45 @@ async function handleRegisterInfluencer(request, env) {
       return jsonResponse({ success: false, message: "Voucher endorse tidak sah atau sudah terpakai." }, 400);
     }
 
+    // --- AUTO-CREATE CLIENT & SETTINGS FOR INFLUENCER ---
+    const defaultPin = "123456";
+    const defaultPackage = "Pro"; // Influencer otomatis dapat Pro
+
+    // 1. Insert ke tabel clients
+    await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
+      method: "POST",
+      headers: {
+        "apikey": serviceKey,
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        order_id: "INF-" + slug + "-" + Date.now(),
+        name: bankHolder || slug,
+        phone: whatsapp,
+        package: defaultPackage,
+        slug: slug,
+        status: "active"
+      })
+    }).catch(e => console.error("Gagal create client:", e));
+
+    // 2. Insert ke tabel settings (dengan PIN default)
+    await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+      method: "POST",
+      headers: {
+        "apikey": serviceKey,
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        client_slug: slug,
+        admin_pin: defaultPin,
+        profile_name: bankHolder || slug,
+        max_products: 30
+      })
+    }).catch(e => console.error("Gagal create settings:", e));
+    // -----------------------------------------------------
+
     const insRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers`, {
       method: "POST",
       headers: {
