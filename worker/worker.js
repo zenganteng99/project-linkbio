@@ -575,9 +575,16 @@ async function handleGapuraWebhook(request, env) {
 
   // 2. PENDAFTARAN KLIEN BARU
   const clientSlug = generateSlug(customerName, orderId);
+  const defaultPin = "123456";
+  
+  // Tentukan max_products berdasarkan nama paket yang dibeli
+  let targetMaxProducts = 10; // Default Starter
+  if (packageName.toLowerCase().includes("pro")) targetMaxProducts = 30;
+  if (packageName.toLowerCase().includes("ultimate")) targetMaxProducts = 50;
 
   try {
-    const response = await fetch(SUPABASE_URL + "/rest/v1/clients", {
+    // A. Insert ke tabel clients
+    const clientRes = await fetch(SUPABASE_URL + "/rest/v1/clients", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -595,10 +602,27 @@ async function handleGapuraWebhook(request, env) {
       })
     });
 
-    if (!response.ok) {
+    if (!clientRes.ok) {
       return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien." }, 502);
     }
-    return jsonResponse({ status: "OK", message: "Akun berhasil diaktifkan secara otomatis", slug: clientSlug }, 200);
+
+    // B. Insert ke tabel settings dengan max_products yang tepat
+    await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+      method: "POST",
+      headers: {
+        "apikey": serviceKey,
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        client_slug: clientSlug,
+        admin_pin: defaultPin,
+        profile_name: customerName,
+        max_products: targetMaxProducts
+      })
+    }).catch(e => console.error("[Webhook] Gagal create settings:", e));
+
+    return jsonResponse({ status: "OK", message: "Akun berhasil diaktifkan secara otomatis", slug: clientSlug, max_products: targetMaxProducts }, 200);
   } catch (err) {
     return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook: " + (err && err.message) }, 500);
   }
