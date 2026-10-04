@@ -1,4 +1,4 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
+﻿// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
 //   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID & Max Products)
@@ -11,8 +11,131 @@
 //   POST    /api/register-influencer-> Registrasi akun influencer & klaim endorse aman (Server-Side)
 //   GET     /*                      -> Cloudflare Pages Proxy + Dynamic Open Graph & Meta SEO Injection (Cache 300s)
 
+// =============================================================================
+// CORS CONFIGURATION - Restricted to authorized origins only
+// =============================================================================
+const ALLOWED_ORIGINS = [
+  'https://customlink.id',
+  'https://www.customlink.id',
+  'https://customlink.pages.dev'
+];
+
+function getCorsHeaders(request) {
+  const origin = request.headers.get('Origin') || request.headers.get('origin');
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400"
+  };
+}
+
+// =============================================================================
+// WEBHOOK SECURITY - Signature Verification Helpers
+// =============================================================================
+/**
+ * Normalize public key PEM format for Web Crypto API
+ * Accepts both PEM format and raw base64
+ */
+function normalizePublicKeyPem(raw) {
+  const key = String(raw || "").trim();
+  if (!key) return "";
+  if (key.includes("BEGIN PUBLIC KEY")) return key;
+  
+  // If raw base64, convert to PEM
+  const b64 = key.replace(/\s+/g, "");
+  const lines = [];
+  for (let i = 0; i < b64.length; i += 64) {
+    lines.push(b64.substring(i, i + 64));
+  }
+  return "-----BEGIN PUBLIC KEY-----\n" + lines.join("\n") + "\n-----END PUBLIC KEY-----";
+}
+
+/**
+ * Convert PEM to ArrayBuffer for Web Crypto API
+ */
+function pemToArrayBuffer(pem) {
+  const b64 = pem
+    .replace(/-----BEGIN [A-Z ]+-----/, "")
+    .replace(/-----END [A-Z ]+-----/, "")
+    .replace(/\s+/g, "");
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * Calculate SHA-256 hash of string, return hex
+ */
+async function sha256Hex(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = new Uint8Array(hashBuffer);
+  return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verify DANA SNAP signature using Web Crypto API (RSASSA-PKCS1-v1_5 SHA-256)
+ * @param {string} endpointUrl - Full webhook URL path (e.g., "/api/webhook/gapura")
+ * @param {string} rawBody - Raw request body string
+ * @param {string} signatureB64 - Base64 encoded signature from X-SIGNATURE header
+ * @param {string} timestamp - Timestamp from X-TIMESTAMP header
+ * @param {string} publicKeyPem - Public key in PEM format
+ * @returns {Promise<boolean>} - True if signature is valid
+ */
+async function verifySnapSignature(endpointUrl, rawBody, signatureB64, timestamp, publicKeyPem) {
+  if (!publicKeyPem || !signatureB64 || !timestamp) {
+    console.warn("[Webhook] Missing parameters for signature verification");
+    return false;
+  }
+  
+  try {
+    // Calculate SHA-256 of body
+    const bodyHash = await sha256Hex(rawBody);
+    
+    // Build string to sign: POST:<endpoint>:<bodyHash>:<timestamp>
+    const stringToSign = "POST:" + endpointUrl + ":" + bodyHash + ":" + timestamp;
+    
+    // Import public key
+    const keyData = pemToArrayBuffer(publicKeyPem);
+    const publicKey = await crypto.subtle.importKey(
+      "spki",
+      keyData,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+    
+    // Decode signature from base64
+    const signatureBinary = atob(signatureB64);
+    const signatureBytes = new Uint8Array(signatureBinary.length);
+    for (let i = 0; i < signatureBinary.length; i++) {
+      signatureBytes[i] = signatureBinary.charCodeAt(i);
+    }
+    
+    // Verify signature
+    const isValid = await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      publicKey,
+      signatureBytes,
+      new TextEncoder().encode(stringToSign)
+    );
+    
+    return isValid;
+  } catch (err) {
+    console.error("[Webhook] Signature verification error:", err && err.message);
+    return false;
+  }
+}
+
+
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://customlink.id",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Max-Age": "86400"
@@ -104,18 +227,9 @@ function normalizePrivateKeyPem(raw) {
   return "-----BEGIN PRIVATE KEY-----\n" + lines.join("\n") + "\n-----END PRIVATE KEY-----";
 }
 
-function pemToArrayBuffer(pem) {
-  const b64 = pem.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, "").replace(/\s+/g, "");
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
-}
 
-async function sha256Hex(text) {
-  const dg = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(dg)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+
+
 
 async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timestamp) {
   const hash = await sha256Hex(requestBody);
@@ -293,9 +407,72 @@ function generateSlug(name, orderId) {
 }
 
 async function handleGapuraWebhook(request, env) {
+  // =============================================================================
+  // WEBHOOK SECURITY - Read raw body first for signature verification
+  // =============================================================================
+  let rawBody;
+  try {
+    rawBody = await request.text();
+  } catch (e) {
+    return jsonResponse({ status: "INVALID", message: "Failed to read request body." }, 400);
+  }
+  
+  if (!rawBody || !rawBody.trim()) {
+    return jsonResponse({ status: "INVALID", message: "Empty request body." }, 400);
+  }
+  
+  // Parse payload AFTER reading raw body
   let payload;
-  try { payload = await request.json(); } catch (e) {
+  try {
+    payload = JSON.parse(rawBody);
+  } catch (e) {
     return jsonResponse({ status: "INVALID", message: "Payload webhook tidak valid." }, 400);
+  }
+  
+  // =============================================================================
+  // SIGNATURE VERIFICATION - Validate X-SIGNATURE and X-TIMESTAMP headers
+  // =============================================================================
+  const signature = request.headers.get('X-SIGNATURE');
+  const timestamp = request.headers.get('X-TIMESTAMP');
+  
+  if (env.DANA_PUBLIC_KEY) {
+    if (!signature || !timestamp) {
+      console.error("[Webhook] Missing signature headers. IP:", request.headers.get('CF-Connecting-IP'));
+      return jsonResponse({ status: "INVALID", message: "Missing X-SIGNATURE or X-TIMESTAMP header." }, 400);
+    }
+    
+    const publicKeyPem = normalizePublicKeyPem(env.DANA_PUBLIC_KEY);
+    if (!publicKeyPem) {
+      console.error("[Webhook] Invalid DANA_PUBLIC_KEY configuration");
+      return jsonResponse({ status: "ERROR", message: "Server configuration error." }, 500);
+    }
+    
+    const isValid = await verifySnapSignature(
+      "/api/webhook/gapura",
+      rawBody,
+      signature,
+      timestamp,
+      publicKeyPem
+    );
+    
+    if (!isValid) {
+      console.error("[Webhook] Invalid webhook signature. IP:", request.headers.get('CF-Connecting-IP'));
+      return jsonResponse({ status: "INVALID", message: "Invalid webhook signature." }, 401);
+    }
+    
+    console.log("[Webhook] Signature verified successfully for order:", payload.partnerReferenceNo);
+  } else {
+    console.warn("[Webhook] DANA_PUBLIC_KEY not configured, skipping signature verification (DEVELOPMENT MODE)");
+  }
+  
+  // =============================================================================
+  // PAYMENT STATUS VALIDATION - Only process successful payments
+  // =============================================================================
+  const responseCode = payload.responseCode || payload.responseHeader?.responseCode;
+  
+  if (responseCode !== '2005400') {
+    console.log("[Webhook] Non-success payment ignored. ResponseCode:", responseCode, "Order:", payload.partnerReferenceNo);
+    return jsonResponse({ status: "IGNORED", message: "Payment not successful, ignored.", responseCode }, 200);
   }
 
   const orderId = payload.orderId || payload.originalPartnerReferenceNo || payload.partnerReferenceNo || payload.originalReferenceNo;
@@ -311,6 +488,34 @@ async function handleGapuraWebhook(request, env) {
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
   if (!serviceKey) {
     return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
+  }
+  
+  // =============================================================================
+  // IDEMPOTENCY CHECK - Query Supabase to prevent duplicate processing
+  // =============================================================================
+  try {
+    const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/clients?order_id=eq.${encodeURIComponent(orderId)}&select=id,slug`, {
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": serviceKey,
+        "Authorization": "Bearer " + serviceKey
+      }
+    });
+    
+    if (checkRes.ok) {
+      const existingClients = await checkRes.json();
+      if (existingClients && existingClients.length > 0) {
+        console.log("[Webhook] Order already processed (idempotency). OrderId:", orderId);
+        return jsonResponse({ 
+          status: "OK", 
+          message: "Order already processed.", 
+          slug: existingClients[0].slug || "existing",
+          idempotent: true 
+        }, 200);
+      }
+    }
+  } catch (idempErr) {
+    console.error("[Webhook] Idempotency check failed:", idempErr && idempErr.message);
   }
 
   const isUpgrade = String(orderId).startsWith("UPG-") || Boolean(addInfo.isUpgrade);
@@ -756,7 +961,7 @@ async function handleCheckVoucher(request, env) {
     if (endorseList && endorseList.length > 0) {
       const v = endorseList[0];
       if (v.is_used) {
-        return jsonResponse({ valid: false, message: "❌ Voucher endorse ini sudah pernah digunakan!" });
+        return jsonResponse({ valid: false, message: "âŒ Voucher endorse ini sudah pernah digunakan!" });
       }
       return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
     }
@@ -769,7 +974,7 @@ async function handleCheckVoucher(request, env) {
       return jsonResponse({ valid: true, type: "influencer", discount_percent: infList[0].discount_percent || 30 });
     }
 
-    return jsonResponse({ valid: false, message: "❌ Kode voucher tidak ditemukan. Diskon 0%." });
+    return jsonResponse({ valid: false, message: "âŒ Kode voucher tidak ditemukan. Diskon 0%." });
   } catch (err) {
     return jsonResponse({ valid: false, message: "Gagal memverifikasi voucher di server." }, 500);
   }
