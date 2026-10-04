@@ -773,7 +773,7 @@ if (rawSlug !== slug) {
                 if (result.success === true) {
                     alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
                     document.getElementById('influencerModal').classList.add('hidden');
-                    window.location.href = `admin.html?slug=${slug}&new=1`;
+                    window.location.href = `/admin?slug=${slug}&new=1`;
                 } else {
                     alert('Gagal aktivasi: ' + (result.message || 'Silakan coba lagi.'));
                 }
