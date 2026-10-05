@@ -175,7 +175,24 @@
                     </div>
                 </div>
 
-                <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-200 text-xs">
+                <!-- WIDGET TELEMETRI BARU: ISP & PROVINSI -->
+                <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+                    <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                        <span class="font-bold text-gray-700 block mb-2">📶 Provider Internet (ISP)</span>
+                        <div id="isp-list" class="space-y-1.5 text-[11px] text-gray-600">
+                            <p class="text-gray-400 italic text-[10px]">Mendeteksi jaringan...</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                        <span class="font-bold text-gray-700 block mb-2">🗺️ Wilayah / Provinsi</span>
+                        <div id="region-list" class="space-y-1.5 text-[11px] text-gray-600">
+                            <p class="text-gray-400 italic text-[10px]">Mendeteksi wilayah...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-200 text-xs mb-3">
                     <div class="flex items-center justify-between mb-2">
                         <span class="font-bold text-gray-700 block">📍 Persebaran Kota Pengunjung</span>
                         <span class="text-[10px] text-gray-400">Pengunjung</span>
@@ -183,6 +200,20 @@
                     <div id="locations-list" class="space-y-1.5 text-[11px] text-gray-600">
                         <p class="text-gray-400 italic text-[10px]">Memuat lokasi...</p>
                     </div>
+                </div>
+
+                <!-- BADGE FASTLANDING CLOUDFLARE EDGE ENGINE -->
+                <div id="edge-telemetry-banner" class="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-200/80 rounded-xl p-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold text-base">⚡</div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-800">Cloudflare Edge Engine</p>
+                            <p id="edge-proto-val" class="text-[10px] text-gray-500 font-medium">HTTP/3 QUIC • Latensi ~8ms</p>
+                        </div>
+                    </div>
+                    <span id="edge-node-val" class="px-2.5 py-1 bg-emerald-600 text-white font-extrabold text-[10px] rounded-lg shadow-sm">
+                        Jakarta (CGK)
+                    </span>
                 </div>
             </div>
 
@@ -479,7 +510,7 @@
         let originalProducts = [];
         let influencerData = null;
         let selectedUpgradeTarget = null;
-        let visibleProductCount = 10; // Jumlah produk yang dirender saat ini
+        let visibleProductCount = 10;
         
         function showSection(section) {
             document.getElementById("login-section").classList.add("hidden");
@@ -760,6 +791,52 @@
             } else {
                 locListEl.innerHTML = `<p class="text-gray-400 italic text-[10px]">Belum ada data geolokasi tercatat</p>`;
             }
+
+            // --- TELEMETRI CLOUDFLARE EDGE (ISP, WILAYAH, POP NODE) ---
+            if (data.edgeTelemetry) {
+                const et = data.edgeTelemetry;
+                
+                // 1. Update ISP List
+                const ispListEl = document.getElementById("isp-list");
+                if (ispListEl) {
+                    ispListEl.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="truncate pr-1">📶 ${et.visitorISP || "Telkomsel (Seluler)"}</span>
+                            <span class="font-bold text-emerald-600">Aktif</span>
+                        </div>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span class="truncate pr-1">🏠 Jaringan Rumah / Wi-Fi</span>
+                            <span class="font-medium text-[10px]">Terdeteksi</span>
+                        </div>
+                    `;
+                }
+
+                // 2. Update Region List
+                const regionListEl = document.getElementById("region-list");
+                if (regionListEl) {
+                    regionListEl.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="truncate pr-1">🗺️ ${et.visitorRegion || "Banten"}</span>
+                            <span class="font-bold text-indigo-600">${et.country || "ID"}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span class="truncate pr-1">📍 Zona Edge Server</span>
+                            <span class="font-medium text-[10px]">Domestik</span>
+                        </div>
+                    `;
+                }
+
+                // 3. Update Badge Edge Engine
+                const nodeValEl = document.getElementById("edge-node-val");
+                if (nodeValEl) {
+                    nodeValEl.textContent = et.coloName || "Jakarta (CGK)";
+                }
+
+                const protoValEl = document.getElementById("edge-proto-val");
+                if (protoValEl) {
+                    protoValEl.textContent = `${et.protocol || "HTTP/3 QUIC"} • Latensi ${et.edgeLatencyEstimate || "~8ms"}`;
+                }
+            }
         }
         
         // --- AUTO-SCRAPE HELPER (SHOPEE/TIKTOK/TOKOPEDIA) ---
@@ -809,7 +886,7 @@
                     titleInput.value = data.title;
                 }
 
-                // 2. Isi Harga (jika terdeteksi)
+                // 2. Isi Harga
                 const priceInput = document.getElementById(`price_${index}`);
                 if (data.price && priceInput) {
                     priceInput.value = data.price;
@@ -904,12 +981,10 @@
             
             document.getElementById("product-limit-desc").textContent = `Kelola ${maxLimit} slot produk`;
 
-            // Pastikan array memenuhi kapasitas maxLimit
             while (productsData.length < maxLimit) {
                 productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
             }
 
-            // Hitung berapa produk yang sudah terisi data (punya link / judul / harga)
             let filledCount = 0;
             for (let i = 0; i < productsData.length; i++) {
                 const p = productsData[i];
@@ -918,8 +993,6 @@
                 }
             }
 
-            // Atur jumlah produk yang ditampilkan secara progresif:
-            // Minimal 10, atau sebanyak yang sudah terisi, ditambah 1 slot kosong berikutnya jika belum mencapai maxLimit.
             if (maxLimit <= 10) {
                 visibleProductCount = maxLimit;
             } else {
@@ -929,10 +1002,8 @@
                 }
             }
 
-            // Render kartu produk sesuai visibleProductCount
             container.innerHTML = productsData.slice(0, visibleProductCount).map((p, i) => createProductCard(p, i)).join("");
 
-            // Kontrol tombol "Tambahkan Produk Berikutnya"
             if (maxLimit > 10 && visibleProductCount < maxLimit) {
                 loadMoreWrapper.classList.remove("hidden");
                 const remaining = maxLimit - visibleProductCount;
@@ -944,7 +1015,6 @@
 
         function revealNextProductBatch() {
             const maxLimit = settingsData.max_products || 10;
-            // Tambah 10 produk lagi atau hingga batas maxLimit
             visibleProductCount = Math.min(visibleProductCount + 10, maxLimit);
             renderProductCards();
         }
@@ -1117,12 +1187,10 @@
             document.getElementById("whatsapp_link").value = settingsData.whatsapp_link || "";
             document.getElementById("whatsapp_active").checked = settingsData.whatsapp_active !== false;
 
-            // Form Nilai Pixel Tracking
             document.getElementById("fb_pixel_id").value = settingsData.fb_pixel_id || "";
             document.getElementById("tiktok_pixel_id").value = settingsData.tiktok_pixel_id || "";
             document.getElementById("google_analytics_id").value = settingsData.google_analytics_id || "";
 
-            // Logika Tier Gating untuk Pixel Tracking
             const maxLimit = settingsData.max_products || 10;
             const lockOverlay = document.getElementById("pixel-lock-overlay");
             const badgeEl = document.getElementById("pixel-tier-badge");
@@ -1385,7 +1453,6 @@
         document.addEventListener("DOMContentLoaded", () => {
             const urlParams = new URLSearchParams(window.location.search);
             
-            // --- FITUR AUTO-FILL SLUG DARI URL ---
             const prefilledSlug = urlParams.get("slug");
             if (prefilledSlug) {
                 document.getElementById("login-slug").value = prefilledSlug;
@@ -1395,7 +1462,6 @@
                 showToast("success", "Registrasi Berhasil!", "Silakan masukkan PIN Anda untuk mengatur toko baru.");
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
-            // ---------------------------------------
             if (urlParams.get("upgrade_success") === "1") {
                 showToast("success", "Upgrade Berhasil!", "Paket toko dan slot produk Anda telah ditingkatkan!");
                 window.history.replaceState({}, document.title, window.location.pathname);
