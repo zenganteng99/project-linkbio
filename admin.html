@@ -619,49 +619,47 @@
             }
         }
         
+        // 1. HAPUS GAMBAR OTOMATIS (Mendukung R2 & Supabase Legacy)
         async function deleteImage(url) {
+            if (!url) return;
             try {
-                const res = await fetch(WORKER_ORIGIN + '/api/delete-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-                if (!res.ok) {
-                    console.error('Delete image failed:', await res.text());
+                if (url.includes('/cdn/')) {
+                    await fetch(WORKER_ORIGIN + '/api/delete-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: url })
+                    });
+                } else if (url.includes('/public-assets/')) {
+                    const path = extractPathFromUrl(url);
+                    if (path) {
+                        await sbClient.storage.from(SB_BUCKET).remove([path]);
+                    }
                 }
             } catch (err) {
-                console.error("Delete image error:", err);
-            }
-        },
-                    body: JSON.stringify({ url: url })
-                });
-                if (!res.ok) {
-                    console.error('Delete image failed:', await res.text());
-                }
-            } catch (err) {
-                console.error("Delete image error:", err);
-            }
-        }
-            } catch (err) {
-                console.error("Delete image error:", err);
+                console.warn("Delete image warning:", err);
             }
         }
         
-        async function uploadImage(file, filePrefix, oldUrl) {
+        // 2. UPLOAD GAMBAR KE CLOUDFLARE R2 DENGAN AUTO-CLEANUP
+        async function uploadImage(file, filePrefix, oldUrl = "") {
             const optimizedFile = await compressImage(file, 800, 0.75);
             const formData = new FormData();
             formData.append('file', optimizedFile);
+            formData.append('prefix', filePrefix);
             if (oldUrl) {
                 formData.append('oldUrl', oldUrl);
             }
+
             const res = await fetch(WORKER_ORIGIN + '/api/upload-image', {
                 method: 'POST',
                 body: formData
             });
+
             if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Upload failed');
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || errData.error || 'Gagal mengunggah foto ke Cloudflare R2');
             }
+
             const data = await res.json();
             return data.url;
         }
@@ -1355,20 +1353,22 @@
                 let profileImageUrl = originalSettings.profile_image_url || "";
                 let backgroundUrl = originalSettings.background_url || "";
                 
+                // 1. Upload Foto Profil ke R2 & Hapus Foto Lama
                 const profileInput = document.getElementById("profile_image");
                 if (profileInput.files[0]) {
                     if (originalSettings.profile_image_url) {
                         await deleteImage(originalSettings.profile_image_url);
                     }
-                    profileImageUrl = await uploadImage(profileInput.files[0], `profile_${currentSlug}`);
+                    profileImageUrl = await uploadImage(profileInput.files[0], `profile_${currentSlug}`, originalSettings.profile_image_url);
                 }
                 
+                // 2. Upload Background Hero ke R2 & Hapus Background Lama
                 const bgInput = document.getElementById("hero_background");
                 if (bgInput.files[0]) {
                     if (originalSettings.background_url) {
                         await deleteImage(originalSettings.background_url);
                     }
-                    backgroundUrl = await uploadImage(bgInput.files[0], `background_${currentSlug}`);
+                    backgroundUrl = await uploadImage(bgInput.files[0], `background_${currentSlug}`, originalSettings.background_url);
                 }
                 
                 const settingsPayload = {
@@ -1392,6 +1392,7 @@
                 const maxLimit = settingsData.max_products || 10;
                 const productsPayload = [];
 
+                // 3. Upload Foto Produk ke R2 & Hapus Foto Produk Lama
                 for (let i = 0; i < maxLimit; i++) {
                     const id = document.getElementById(`product_id_${i}`).value;
                     const title = document.getElementById(`title_${i}`).value.trim();
@@ -1405,7 +1406,7 @@
                     let imageUrl = originalImg;
                     if (imgInput.files[0]) {
                         if (originalImg) await deleteImage(originalImg);
-                        imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`);
+                        imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`, originalImg);
                     }
 
                     productsPayload.push({
