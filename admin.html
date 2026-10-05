@@ -19,7 +19,7 @@
         .toggle-checkbox { transition: all 0.3s ease; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen pb-24">
     <!-- Login Section -->
     <div id="login-section" class="min-h-screen flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
@@ -64,7 +64,7 @@
             </div>
         </div>
 
-        <div class="max-w-md mx-auto p-4 space-y-6 pb-20">
+        <div class="max-w-md mx-auto p-4 space-y-6 pb-28">
             <!-- SECTION 0: SISTEM ANALITIK 5-METRIK REAL-TIME -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
                 <div class="flex items-center justify-between mb-5">
@@ -333,6 +333,13 @@
                     <div><h2 class="font-bold text-gray-800">Product Manager</h2><p id="product-limit-desc" class="text-gray-500 text-xs">Kelola slot produk</p></div>
                 </div>
                 <div id="products-container" class="space-y-4"></div>
+                <!-- Tombol Tambah Produk Bertahap (Progressive Reveal) -->
+                <div id="load-more-products-wrapper" class="mt-4 hidden">
+                    <button type="button" onclick="revealNextProductBatch()" class="w-full py-3 border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span id="load-more-btn-text">Tambahkan Produk Berikutnya</span>
+                    </button>
+                </div>
             </div>
 
             <!-- SECTION 3: STATUS & UPGRADE PAKET TOKO -->
@@ -386,13 +393,17 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Save Button -->
-            <button id="save-btn" onclick="handleSave()" class="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                <span>Simpan Perubahan</span>
-                <svg class="w-6 h-6 hidden animate-spin" id="save-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            </button>
+        <!-- STICKY SAVE BUTTON BAR -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200 py-3 px-4 z-40 shadow-2xl">
+            <div class="max-w-md mx-auto">
+                <button id="save-btn" onclick="handleSave()" class="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3.5 rounded-xl font-bold text-base hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <span>Simpan Perubahan</span>
+                    <svg class="w-5 h-5 hidden animate-spin" id="save-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -468,6 +479,7 @@
         let originalProducts = [];
         let influencerData = null;
         let selectedUpgradeTarget = null;
+        let visibleProductCount = 10; // Jumlah produk yang dirender saat ini
         
         function showSection(section) {
             document.getElementById("login-section").classList.add("hidden");
@@ -888,19 +900,53 @@
         function renderProductCards() {
             const container = document.getElementById("products-container");
             const maxLimit = settingsData.max_products || 10;
+            const loadMoreWrapper = document.getElementById("load-more-products-wrapper");
             
             document.getElementById("product-limit-desc").textContent = `Kelola ${maxLimit} slot produk`;
 
-            if (productsData.length === 0) {
-                for (let i = 0; i < maxLimit; i++) {
-                    productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: i + 1 });
-                }
-            } else {
-                while (productsData.length < maxLimit) {
-                    productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
+            // Pastikan array memenuhi kapasitas maxLimit
+            while (productsData.length < maxLimit) {
+                productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
+            }
+
+            // Hitung berapa produk yang sudah terisi data (punya link / judul / harga)
+            let filledCount = 0;
+            for (let i = 0; i < productsData.length; i++) {
+                const p = productsData[i];
+                if ((p.title && p.title.trim() !== "") || (p.affiliate_link && p.affiliate_link.trim() !== "") || (p.price && p.price.toString().trim() !== "")) {
+                    filledCount = i + 1;
                 }
             }
-            container.innerHTML = productsData.slice(0, maxLimit).map((p, i) => createProductCard(p, i)).join("");
+
+            // Atur jumlah produk yang ditampilkan secara progresif:
+            // Minimal 10, atau sebanyak yang sudah terisi, ditambah 1 slot kosong berikutnya jika belum mencapai maxLimit.
+            if (maxLimit <= 10) {
+                visibleProductCount = maxLimit;
+            } else {
+                let initialTarget = Math.max(10, filledCount + 1);
+                if (visibleProductCount < initialTarget) {
+                    visibleProductCount = Math.min(initialTarget, maxLimit);
+                }
+            }
+
+            // Render kartu produk sesuai visibleProductCount
+            container.innerHTML = productsData.slice(0, visibleProductCount).map((p, i) => createProductCard(p, i)).join("");
+
+            // Kontrol tombol "Tambahkan Produk Berikutnya"
+            if (maxLimit > 10 && visibleProductCount < maxLimit) {
+                loadMoreWrapper.classList.remove("hidden");
+                const remaining = maxLimit - visibleProductCount;
+                document.getElementById("load-more-btn-text").textContent = `Tambahkan Produk Berikutnya (${remaining} slot tersisa)`;
+            } else {
+                loadMoreWrapper.classList.add("hidden");
+            }
+        }
+
+        function revealNextProductBatch() {
+            const maxLimit = settingsData.max_products || 10;
+            // Tambah 10 produk lagi atau hingga batas maxLimit
+            visibleProductCount = Math.min(visibleProductCount + 10, maxLimit);
+            renderProductCards();
         }
 
         // --- SISTEM RENDER KARTU UPGRADE DINAMIS ---
