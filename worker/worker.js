@@ -227,10 +227,6 @@ function normalizePrivateKeyPem(raw) {
   return "-----BEGIN PRIVATE KEY-----\n" + lines.join("\n") + "\n-----END PRIVATE KEY-----";
 }
 
-
-
-
-
 async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timestamp) {
   const hash = await sha256Hex(requestBody);
   const stringToSign = "POST:" + endpointUrl + ":" + hash + ":" + timestamp;
@@ -818,7 +814,7 @@ async function handleScrapeProduct(request) {
   }
 }
 
-// --- Handler: POST /api/track (Analytics Ingestion Non-blocking) ---
+// --- Handler: POST /api/track (Analytics Ingestion Non-blocking dengan Deteksi Mobile Presisi) ---
 async function handleTrack(request, env, ctx) {
   const ua = request.headers.get("user-agent") || "";
   if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) {
@@ -831,8 +827,10 @@ async function handleTrack(request, env, ctx) {
     const eventType = body.eventType || "view";
     const targetId = String(body.targetId || "").trim();
 
-    const cfDevice = (request.headers.get("cf-device-type") || "desktop").toLowerCase();
-    const deviceType = (cfDevice === "mobile" || cfDevice === "tablet") ? "mobile" : "desktop";
+    // Deteksi Perangkat Presisi: Memeriksa header Cloudflare dan User-Agent regex (Android, iPhone, iPad, Tablet)
+    const cfDevice = (request.headers.get("cf-device-type") || "").toLowerCase();
+    const isMobileUa = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua);
+    const deviceType = (cfDevice === "mobile" || cfDevice === "tablet" || isMobileUa) ? "mobile" : "desktop";
 
     let rawRef = (body.referrer || "direct").toLowerCase();
     let referrer = "direct";
@@ -985,7 +983,7 @@ async function handleCheckVoucher(request, env) {
     if (endorseList && endorseList.length > 0) {
       const v = endorseList[0];
       if (v.is_used) {
-        return jsonResponse({ valid: false, message: "âŒ Voucher endorse ini sudah pernah digunakan!" });
+        return jsonResponse({ valid: false, message: "â Œ Voucher endorse ini sudah pernah digunakan!" });
       }
       return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
     }
@@ -998,7 +996,7 @@ async function handleCheckVoucher(request, env) {
       return jsonResponse({ valid: true, type: "influencer", discount_percent: infList[0].discount_percent || 30 });
     }
 
-    return jsonResponse({ valid: false, message: "âŒ Kode voucher tidak ditemukan. Diskon 0%." });
+    return jsonResponse({ valid: false, message: "â Œ Kode voucher tidak ditemukan. Diskon 0%." });
   } catch (err) {
     return jsonResponse({ valid: false, message: "Gagal memverifikasi voucher di server." }, 500);
   }
