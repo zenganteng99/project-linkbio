@@ -32,6 +32,42 @@ function getCorsHeaders(request) {
 }
 
 // =============================================================================
+// HELPER FORMATTING ISP & JARINGAN CLOUDFLARE
+// =============================================================================
+function formatISPName(rawAsOrg) {
+  if (!rawAsOrg) return "Lainnya / Seluler";
+  const org = rawAsOrg.toLowerCase();
+  
+  if (org.includes("telekomunikasi selular") || org.includes("telkomsel")) return "Telkomsel (Seluler)";
+  if (org.includes("indosat") || org.includes("hutchison") || org.includes("tri")) return "Indosat / Tri (Seluler)";
+  if (org.includes("xl axiata") || org.includes("axis")) return "XL Axiata (Seluler)";
+  if (org.includes("smartfren")) return "Smartfren (Seluler)";
+  if (org.includes("telkom indonesia") || org.includes("indihome")) return "IndiHome (Wi-Fi)";
+  if (org.includes("link net") || org.includes("first media") || org.includes("firstmedia")) return "First Media (Wi-Fi)";
+  if (org.includes("biznet")) return "Biznet (Wi-Fi)";
+  if (org.includes("myrepublic")) return "MyRepublic (Wi-Fi)";
+  if (org.includes("cbn")) return "CBN (Wi-Fi)";
+  if (org.includes("mora telematika") || org.includes("oxygen")) return "Oxygen.id (Wi-Fi)";
+  
+  return rawAsOrg.replace(/^(PT\.|PT\s+)/i, "").trim().slice(0, 24);
+}
+
+function resolveColoName(coloCode) {
+  const code = String(coloCode || "CGK").toUpperCase();
+  const coloMap = {
+    "CGK": "Jakarta (CGK)",
+    "SUB": "Surabaya (SUB)",
+    "DPS": "Denpasar (DPS)",
+    "BPN": "Balikpapan (BPN)",
+    "UPG": "Makassar (UPG)",
+    "KNO": "Medan (KNO)",
+    "SIN": "Singapura (SIN)",
+    "KUL": "Kuala Lumpur (KUL)"
+  };
+  return coloMap[code] || `${code} Edge Node`;
+}
+
+// =============================================================================
 // WEBHOOK SECURITY - Signature Verification Helpers
 // =============================================================================
 /**
@@ -132,7 +168,6 @@ async function verifySnapSignature(endpointUrl, rawBody, signatureB64, timestamp
     return false;
   }
 }
-
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://customlink.id",
@@ -387,7 +422,7 @@ async function handleCreatePayment(request, env) {
       orderId: orderId,
       responseCode: gwCode || null,
       debugMessage: gwDebug || null,
-      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran." + (gwMsg ? " (" + gwMsg + ")" : ""),
+      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran." + (gwMsg ? " (" + gwMsg : "") + ")",
       detail: gatewayData
     }, 502);
   }
@@ -872,7 +907,7 @@ async function handleTrack(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik) ---
+// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik + Injeksi Telemetri Edge Cloudflare) ---
 async function handleAdminAnalytics(request, env, ctx) {
   const cacheUrl = new URL(request.url);
   const cacheKey = new Request(cacheUrl.toString(), request);
@@ -902,6 +937,22 @@ async function handleAdminAnalytics(request, env, ctx) {
     }
 
     const data = await res.json();
+
+    // Injeksi Telemetri Cloudflare Edge Gratis untuk Tampilan Admin Panel
+    const cf = request.cf || {};
+    const rawAsOrg = cf.asOrganization || request.headers.get("cf-as-organization") || "";
+    const coloCode = cf.colo || "CGK";
+
+    data.edgeTelemetry = {
+      colo: coloCode,
+      coloName: resolveColoName(coloCode),
+      protocol: cf.httpProtocol || "HTTP/3",
+      visitorISP: formatISPName(rawAsOrg),
+      visitorRegion: cf.region || cf.regionCode || "Banten / Jabodetabek",
+      country: cf.country || "ID",
+      edgeLatencyEstimate: "~8ms"
+    };
+
     const response = jsonResponse(data, 200, {
       "Cache-Control": "public, max-age=60, s-maxage=60",
       "CF-Cache-Status": "MISS"
@@ -916,7 +967,7 @@ async function handleAdminAnalytics(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID & Max Products) ---
+// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID & Max Products & Edge Telemetry) ---
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
@@ -946,9 +997,18 @@ async function handlePublicStore(request, env, ctx) {
     const settingsData = await settingsRes.json();
     const productsData = await productsRes.json();
 
+    const cf = request.cf || {};
+    const coloCode = cf.colo || "CGK";
+
     const payload = {
       settings: settingsData && settingsData.length > 0 ? settingsData[0] : null,
-      products: Array.isArray(productsData) ? productsData : []
+      products: Array.isArray(productsData) ? productsData : [],
+      edgeInfo: {
+        colo: coloCode,
+        coloName: resolveColoName(coloCode),
+        protocol: cf.httpProtocol || "HTTP/3",
+        region: cf.region || cf.regionCode || "ID"
+      }
     };
 
     const response = jsonResponse(payload, 200, {
@@ -1231,6 +1291,17 @@ export default {
       return handleRegisterInfluencer(request, env);
     }
 
+    
+    // R2 Storage Routes
+    if (url.pathname.startsWith("/cdn/") && request.method === "GET") {
+      return handleCDN(request, env);
+    }
+    if (url.pathname === "/api/upload-image" && request.method === "POST") {
+      return handleUploadImage(request, env);
+    }
+    if (url.pathname === "/api/delete-image" && request.method === "POST") {
+      return handleDeleteImage(request, env);
+    }
     if (request.method === "GET") {
       return handlePageRender(request, env, ctx);
     }

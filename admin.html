@@ -621,29 +621,49 @@
         
         async function deleteImage(url) {
             try {
-                const path = extractPathFromUrl(url);
-                if (path) {
-                    await sbClient.storage.from(SB_BUCKET).remove([path]);
+                const res = await fetch(WORKER_ORIGIN + '/api/delete-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                if (!res.ok) {
+                    console.error('Delete image failed:', await res.text());
+                }
+            } catch (err) {
+                console.error("Delete image error:", err);
+            }
+        },
+                    body: JSON.stringify({ url: url })
+                });
+                if (!res.ok) {
+                    console.error('Delete image failed:', await res.text());
                 }
             } catch (err) {
                 console.error("Delete image error:", err);
             }
         }
+            } catch (err) {
+                console.error("Delete image error:", err);
+            }
+        }
         
-        async function uploadImage(file, filePrefix) {
+        async function uploadImage(file, filePrefix, oldUrl) {
             const optimizedFile = await compressImage(file, 800, 0.75);
-            await cleanupOldStorageFiles(filePrefix);
-
-            const ext = optimizedFile.name.split(".").pop();
-            const filename = `${filePrefix}_${Date.now()}.${ext}`;
-            
-            const { data, error } = await sbClient.storage.from(SB_BUCKET).upload(filename, optimizedFile, {
-                cacheControl: "3600",
-                upsert: false
+            const formData = new FormData();
+            formData.append('file', optimizedFile);
+            if (oldUrl) {
+                formData.append('oldUrl', oldUrl);
+            }
+            const res = await fetch(WORKER_ORIGIN + '/api/upload-image', {
+                method: 'POST',
+                body: formData
             });
-            if (error) throw error;
-            const { data: urlData } = sbClient.storage.from(SB_BUCKET).getPublicUrl(data.path);
-            return urlData.publicUrl;
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Upload failed');
+            }
+            const data = await res.json();
+            return data.url;
         }
 
         async function loadAnalytics(slug) {

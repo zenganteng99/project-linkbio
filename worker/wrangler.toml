@@ -7,6 +7,13 @@ account_id = "5b88f222d36927af58324572423be844"
 [observability]
 enabled = true
 
+
+# ---------------------------------------------------------------------------
+# CLOUDFLARE R2 STORAGE - Image Asset Management
+# ---------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "customlink-assets"
 # ---------------------------------------------------------------------------
 # VARIABEL NON-RAHASIA (aman commit)
 # ---------------------------------------------------------------------------
@@ -30,6 +37,9 @@ SUB_MERCHANT_ID = "d5831d89"
 
 # CHANNEL-ID wajib 1-5 karakter (spec SNAP). Nilai contoh dari dashboard DANA = 95221.
 DANA_CHANNEL_ID = "95221"
+
+# Primary domain untuk CDN URL
+PRIMARY_DOMAIN = "https://customlink.pages.dev"
 
 # ---------------------------------------------------------------------------
 # VARIABEL RAHASIA — JANGAN ditaruh di file ini. Set dari terminal:
