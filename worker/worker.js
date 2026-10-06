@@ -1191,6 +1191,7 @@ async function handleRegisterInfluencer(request, env) {
   try { body = await request.json(); } catch (e) { return jsonResponse({ success: false, message: "Payload tidak valid." }, 400); }
 
   const slug = String(body.slug || "").trim().toLowerCase();
+  const packageName = String(body.package || "Pro").trim();
   const voucher = String(body.voucher || "").trim().toUpperCase();
   const whatsapp = String(body.whatsapp || "").trim();
   const bankName = String(body.bankName || "").trim();
@@ -1213,7 +1214,10 @@ async function handleRegisterInfluencer(request, env) {
 
     // --- AUTO-CREATE CLIENT & SETTINGS FOR INFLUENCER ---
     const defaultPin = "123456";
-    const defaultPackage = "Pro"; // Influencer otomatis dapat Pro
+    // Dynamic package assignment based on selected tier
+    let targetMaxProducts = 30; // Default Pro
+    if (packageName.toLowerCase().includes("ultimate")) targetMaxProducts = 50;
+    if (packageName.toLowerCase().includes("starter")) targetMaxProducts = 10;
 
     // 1. Insert ke tabel clients
     await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
@@ -1227,7 +1231,7 @@ async function handleRegisterInfluencer(request, env) {
         order_id: "INF-" + slug + "-" + Date.now(),
         name: bankHolder || slug,
         phone: whatsapp,
-        package: defaultPackage,
+        package: packageName,
         slug: slug,
         status: "active"
       })
@@ -1245,7 +1249,7 @@ async function handleRegisterInfluencer(request, env) {
         client_slug: slug,
         admin_pin: defaultPin,
         profile_name: bankHolder || slug,
-        max_products: 30
+        max_products: targetMaxProducts
       })
     }).catch(e => console.error("Gagal create settings:", e));
     // -----------------------------------------------------

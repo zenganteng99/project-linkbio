@@ -736,17 +736,18 @@
         // --- MENYIMPAN DATA INFLUENCER SECARA AMAN VIA WORKER ---
         async function submitInfluencerData() {
             const rawSlug = document.getElementById('inf_slug').value;
-const slug = rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
-if (rawSlug !== slug) {
-    alert('Slug hanya boleh menggunakan huruf kecil, angka, dan tanda hubung (tanpa spasi). Sistem telah mengoreksinya otomatis.');
-    document.getElementById('inf_slug').value = slug;
-    return;
-}
+            const slug = rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
+            if (rawSlug !== slug) {
+                alert('Slug hanya boleh menggunakan huruf kecil, angka, dan tanda hubung (tanpa spasi). Sistem telah mengoreksinya otomatis.');
+                document.getElementById('inf_slug').value = slug;
+                return;
+            }
             const voucher = document.getElementById('inf_voucher').value.trim().toUpperCase();
             const whatsapp = document.getElementById('inf_whatsapp').value.trim();
             const bankName = document.getElementById('inf_bank_name').value.trim();
             const bankAcc = document.getElementById('inf_bank_account').value.trim();
             const bankHolder = document.getElementById('inf_bank_holder').value.trim();
+            const packageName = document.getElementById('modalTierTitle').innerText.trim() || 'Pro Package';
 
             if (!slug || !voucher || !whatsapp || !bankName || !bankAcc || !bankHolder) {
                 alert('Mohon lengkapi semua kolom form!');
@@ -764,7 +765,8 @@ if (rawSlug !== slug) {
                         bankName: bankName,
                         bankAccount: bankAcc,
                         bankHolder: bankHolder,
-                        endorseCode: activeEndorseCode
+                        endorseCode: activeEndorseCode,
+                        package: packageName
                     })
                 });
 
