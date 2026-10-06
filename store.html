@@ -234,7 +234,7 @@
         
         async function fetchStoreData(slug) {
             try {
-                const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}`);
+                const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { cache: "no-cache" });
                 if (!res.ok) throw new Error("Gagal mengambil data dari Edge");
                 const data = await res.json();
                 
@@ -419,7 +419,7 @@
         
         async function init() {
             const slug = getSlug();
-            
+
             if (!document.title || document.title === "Bio Link - Affiliate") {
                 document.title = "Bio Link - " + slug;
             }
@@ -428,22 +428,8 @@
             sendEvent("view");
 
             const cacheKey = `bio_cache_${slug}`;
-            const cachedData = sessionStorage.getItem(cacheKey);
-            
-            if (cachedData) {
-                try {
-                    const { settings, products } = JSON.parse(cachedData);
-                    prepareAndRenderProducts(products);
-                    renderHero(settings);
-                    backgroundSync(slug, cacheKey);
-                    return;
-                } catch (e) {
-                    sessionStorage.removeItem(cacheKey);
-                }
-            }
             await loadAndRender(slug, cacheKey);
         }
-
         function prepareAndRenderProducts(products) {
             // Berikan nomor urut permanen ke setiap produk
             globalProducts = (products || []).map((p, idx) => ({

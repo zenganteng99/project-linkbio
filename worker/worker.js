@@ -120,22 +120,23 @@ async function handleClearCache(request, env) {
     if (!slug) {
       return jsonResponse({ error: "slug parameter is required" }, 400);
     }
-    const primaryDomain = env.PRIMARY_DOMAIN || "https://customlink.pages.dev";
     const cache = caches.default;
     const deletedUrls = [];
-    // Clear all possible cached versions of the store page
+    // Clear all possible cached versions across all domains
     const urlsToDelete = [
-      `${primaryDomain}/api/public/store?slug=${encodeURIComponent(slug)}`,
-      `${primaryDomain}/${encodeURIComponent(slug)}`,
       `https://customlink.id/api/public/store?slug=${encodeURIComponent(slug)}`,
       `https://customlink.id/${encodeURIComponent(slug)}`,
+      `https://customlink-webhook.modernshopp.workers.dev/api/public/store?slug=${encodeURIComponent(slug)}`,
+      `https://customlink-webhook.modernshopp.workers.dev/${encodeURIComponent(slug)}`,
+      `https://customlink.pages.dev/api/public/store?slug=${encodeURIComponent(slug)}`,
+      `https://customlink.pages.dev/${encodeURIComponent(slug)}`
     ];
-    for (const urlStr of urlsToDelete) {
+    for (const u of urlsToDelete) {
       try {
-        await cache.delete(new Request(urlStr));
-        deletedUrls.push(urlStr);
-      } catch (e) {
-        console.error("Failed to delete cache for:", urlStr, e);
+        await cache.delete(new Request(u));
+        deletedUrls.push(u);
+      } catch(e) {
+        console.error("Failed to delete cache for:", u, e);
       }
     }
     return jsonResponse({ success: true, message: "Cache toko dibersihkan", cleared: deletedUrls });
@@ -1113,7 +1114,7 @@ async function handlePublicStore(request, env, ctx) {
   const slug = (url.searchParams.get("slug") || "default").trim();
   const isNoCache = url.searchParams.get("nocache") === "1";
 
-  const cacheKey = new Request(url.origin + "/api/public/store?slug=" + encodeURIComponent(slug), request);
+  const cacheKey = new Request(url.origin + "/api/public/store?slug=" + encodeURIComponent(slug));
   const cache = caches.default;
 
   if (!isNoCache) {
@@ -1152,7 +1153,7 @@ async function handlePublicStore(request, env, ctx) {
     };
 
     const response = jsonResponse(payload, 200, {
-      "Cache-Control": "public, max-age=300, s-maxage=300",
+      "Cache-Control": "public, max-age=0, s-maxage=300, must-revalidate",
       "CF-Cache-Status": "MISS"
     });
 
@@ -1381,7 +1382,7 @@ async function handlePageRender(request, env, ctx) {
     .transform(response);
 
   const finalResponse = new Response(transformedResponse.body, transformedResponse);
-  finalResponse.headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+  finalResponse.headers.set("Cache-Control", "public, max-age=0, s-maxage=300, must-revalidate");
 
   if (ctx && typeof ctx.waitUntil === "function") {
     ctx.waitUntil(cache.put(cacheKey, finalResponse.clone()));
