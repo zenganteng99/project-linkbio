@@ -1443,6 +1443,9 @@
                 }
 
                 showToast("success", "Berhasil!", "Perubahan telah disimpan dengan aman");
+                // Clear Edge Cache so changes appear instantly on store page
+                fetch(`${WORKER_ORIGIN}/api/clear-cache?slug=${encodeURIComponent(currentSlug)}`, { method: "POST" }).catch(() => {});
+                sessionStorage.removeItem('bio_cache_' + currentSlug);
                 document.getElementById("new_pin").value = "";
                 document.getElementById("confirm_pin").value = "";
 

@@ -113,6 +113,36 @@ async function handleDeleteImage(request, env) {
     return jsonResponse({ error: "Delete failed: " + err.message }, 500);
   }
 }
+async function handleClearCache(request, env) {
+  try {
+    const url = new URL(request.url);
+    const slug = url.searchParams.get('slug') || url.searchParams.get('clientSlug');
+    if (!slug) {
+      return jsonResponse({ error: "slug parameter is required" }, 400);
+    }
+    const primaryDomain = env.PRIMARY_DOMAIN || "https://customlink.pages.dev";
+    const cache = caches.default;
+    const deletedUrls = [];
+    // Clear all possible cached versions of the store page
+    const urlsToDelete = [
+      `${primaryDomain}/api/public/store?slug=${encodeURIComponent(slug)}`,
+      `${primaryDomain}/${encodeURIComponent(slug)}`,
+      `https://customlink.id/api/public/store?slug=${encodeURIComponent(slug)}`,
+      `https://customlink.id/${encodeURIComponent(slug)}`,
+    ];
+    for (const urlStr of urlsToDelete) {
+      try {
+        await cache.delete(new Request(urlStr));
+        deletedUrls.push(urlStr);
+      } catch (e) {
+        console.error("Failed to delete cache for:", urlStr, e);
+      }
+    }
+    return jsonResponse({ success: true, message: "Cache toko dibersihkan", cleared: deletedUrls });
+  } catch (err) {
+    return jsonResponse({ error: "Cache clear failed: " + err.message }, 500);
+  }
+}
 async function handleCDN(request, env) {
   if (!env.ASSETS_BUCKET) {
     return new Response("R2 bucket not configured", { status: 500 });
@@ -1411,6 +1441,9 @@ export default {
     }
     if (url.pathname === "/api/delete-image" && request.method === "POST") {
       return handleDeleteImage(request, env);
+    }
+    if (url.pathname === "/api/clear-cache" && request.method === "POST") {
+      return handleClearCache(request, env);
     }
     if (request.method === "GET") {
       return handlePageRender(request, env, ctx);
