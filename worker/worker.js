@@ -992,123 +992,98 @@ async function handleScrapeProduct(request) {
   }
 }
 
-// --- Handler: POST /api/track (Analytics Ingestion Non-blocking dengan Deteksi Mobile Presisi) ---
+// --- Handler: POST /api/track (Analytics Ingestion via Cloudflare D1 Serverless SQL) ---
 async function handleTrack(request, env, ctx) {
-  const ua = request.headers.get("user-agent") || "";
-  if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) {
-    return new Response(null, { status: 204 });
-  }
-
+  const ua = request.headers.get('user-agent') || '';
+  if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) return new Response(null, { status: 204 });
+  
   try {
     const body = await request.json();
-    const clientSlug = (body.clientSlug || body.slug || "default").trim();
-    const eventType = body.eventType || "view";
-    const targetId = String(body.targetId || "").trim();
-
-    // Deteksi Perangkat Presisi: Memeriksa header Cloudflare dan User-Agent regex (Android, iPhone, iPad, Tablet)
-    const cfDevice = (request.headers.get("cf-device-type") || "").toLowerCase();
-    const isMobileUa = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua);
-    const deviceType = (cfDevice === "mobile" || cfDevice === "tablet" || isMobileUa) ? "mobile" : "desktop";
-
-    let rawRef = (body.referrer || "direct").toLowerCase();
-    let referrer = "direct";
-    if (rawRef.includes("instagram.com")) referrer = "instagram";
-    else if (rawRef.includes("tiktok.com")) referrer = "tiktok";
-    else if (rawRef.includes("google.")) referrer = "google";
-    else if (rawRef.includes("facebook.com")) referrer = "facebook";
-    else if (rawRef !== "direct" && rawRef !== "") referrer = "other";
-
-    const country = request.cf?.country || request.headers.get("cf-ipcountry") || "ID";
-    const city = request.cf?.city || request.headers.get("cf-ipcity") || "Indonesia";
-
-    const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
-    const task = fetch(`${SUPABASE_URL}/rest/v1/rpc/record_analytics_event`, {
-      method: "POST",
-      headers: {
-        "apikey": sbKey,
-        "Authorization": `Bearer ${sbKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        p_client_slug: clientSlug,
-        p_event_type: eventType,
-        p_device_type: deviceType,
-        p_referrer: referrer,
-        p_target_id: targetId,
-        p_country: country,
-        p_city: city
-      })
-    }).catch((err) => console.error("[Analytics Error]", err));
-
-    if (ctx && typeof ctx.waitUntil === "function") {
-      ctx.waitUntil(task);
+    const clientSlug = (body.clientSlug || body.slug || 'default').trim();
+    const eventType = body.eventType || 'view';
+    const targetId = String(body.targetId || '').trim();
+    const cfDevice = (request.headers.get('cf-device-type') || 'desktop').toLowerCase();
+    const deviceType = (cfDevice === 'mobile' || cfDevice === 'tablet') ? 'mobile' : 'desktop';
+    let rawRef = (body.referrer || 'direct').toLowerCase();
+    let referrer = 'direct';
+    if (rawRef.includes('instagram.com')) referrer = 'instagram';
+    else if (rawRef.includes('tiktok.com')) referrer = 'tiktok';
+    else if (rawRef.includes('google.')) referrer = 'google';
+    else if (rawRef.includes('facebook.com')) referrer = 'facebook';
+    else if (rawRef !== 'direct' && rawRef !== '') referrer = 'other';
+    const country = request.cf?.country || request.headers.get('cf-ipcountry') || 'ID';
+    const city = request.cf?.city || request.headers.get('cf-ipcity') || 'Indonesia';
+    
+    // D1 SQL Queries dengan UPSERT pattern
+    const dateStr = new Date().toISOString().split('T')[0];
+    const queries = [];
+    
+    if (eventType === 'view') {
+        queries.push(env.DB.prepare(`INSERT INTO analytics_daily (client_slug, date_str, views) VALUES (?, ?, 1) ON CONFLICT(client_slug, date_str) DO UPDATE SET views = views + 1`).bind(clientSlug, dateStr));
+        queries.push(env.DB.prepare(`INSERT INTO analytics_devices (client_slug, device_type, views) VALUES (?, ?, 1) ON CONFLICT(client_slug, device_type) DO UPDATE SET views = views + 1`).bind(clientSlug, deviceType));
+        queries.push(env.DB.prepare(`INSERT INTO analytics_referrers (client_slug, referrer, views) VALUES (?, ?, 1) ON CONFLICT(client_slug, referrer) DO UPDATE SET views = views + 1`).bind(clientSlug, referrer));
+        queries.push(env.DB.prepare(`INSERT INTO analytics_locations (client_slug, country, city, views) VALUES (?, ?, ?, 1) ON CONFLICT(client_slug, country, city) DO UPDATE SET views = views + 1`).bind(clientSlug, country, city));
+    } else if (eventType === 'product_click') {
+        queries.push(env.DB.prepare(`INSERT INTO analytics_daily (client_slug, date_str, product_clicks) VALUES (?, ?, 1) ON CONFLICT(client_slug, date_str) DO UPDATE SET product_clicks = product_clicks + 1`).bind(clientSlug, dateStr));
+        queries.push(env.DB.prepare(`INSERT INTO analytics_products (client_slug, product_target, clicks) VALUES (?, ?, 1) ON CONFLICT(client_slug, product_target) DO UPDATE SET clicks = clicks + 1`).bind(clientSlug, targetId));
+    } else if (eventType === 'social_click') {
+        queries.push(env.DB.prepare(`INSERT INTO analytics_daily (client_slug, date_str, social_clicks) VALUES (?, ?, 1) ON CONFLICT(client_slug, date_str) DO UPDATE SET social_clicks = social_clicks + 1`).bind(clientSlug, dateStr));
     }
-
+    
+    const dbTask = env.DB.batch(queries).catch(err => console.error('[D1 Error]', err));
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(dbTask); else await dbTask;
+    
     return jsonResponse({ success: true }, 200);
   } catch (err) {
-    return jsonResponse({ error: "Invalid Payload" }, 400);
+    return jsonResponse({ error: 'Invalid Payload' }, 400);
   }
 }
 
-// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik + Injeksi Telemetri Edge Cloudflare) ---
+// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik + Cloudflare D1 Query) ---
 async function handleAdminAnalytics(request, env, ctx) {
   const cacheUrl = new URL(request.url);
   const cacheKey = new Request(cacheUrl.toString(), request);
   const cache = caches.default;
-
   let cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) return cachedResponse;
-
-  const clientSlug = (cacheUrl.searchParams.get("clientSlug") || cacheUrl.searchParams.get("slug") || "default").trim();
-  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_SERVICE_KEY || DEFAULT_SUPABASE_ANON_KEY;
-  if (!sbKey) return jsonResponse({ error: "Konfigurasi Supabase belum lengkap." }, 500);
-
+  
+  const clientSlug = (cacheUrl.searchParams.get('clientSlug') || cacheUrl.searchParams.get('slug') || 'default').trim();
+  
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_analytics_summary_7d`, {
-      method: "POST",
-      headers: {
-        "apikey": sbKey,
-        "Authorization": `Bearer ${sbKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ p_client_slug: clientSlug })
-    });
+    // Tarik data dari D1
+    const { results: trendsData } = await env.DB.prepare(`SELECT date_str, views, product_clicks as clicks, social_clicks FROM analytics_daily WHERE client_slug = ? ORDER BY date_str DESC LIMIT 7`).bind(clientSlug).all();
+    let totalViews = 0, totalClicks = 0, totalSocials = 0;
+    trendsData.forEach(r => { totalViews += r.views; totalClicks += r.clicks; totalSocials += r.social_clicks; });
+    const ctr = totalViews > 0 ? Math.round((totalClicks / totalViews) * 100) : 0;
+    
+    const { results: topProducts } = await env.DB.prepare(`SELECT product_target as title, clicks as total_clicks FROM analytics_products WHERE client_slug = ? ORDER BY clicks DESC LIMIT 5`).bind(clientSlug).all();
+    const { results: devicesData } = await env.DB.prepare(`SELECT device_type, views FROM analytics_devices WHERE client_slug = ?`).bind(clientSlug).all();
+    const devices = { mobile: 0, desktop: 0 };
+    devicesData.forEach(d => devices[d.device_type] = d.views);
+    
+    const { results: referrersData } = await env.DB.prepare(`SELECT referrer, views FROM analytics_referrers WHERE client_slug = ? ORDER BY views DESC`).bind(clientSlug).all();
+    const referrers = {};
+    referrersData.forEach(r => referrers[r.referrer] = r.views);
+    
+    const { results: locationsData } = await env.DB.prepare(`SELECT country, city, views as total FROM analytics_locations WHERE client_slug = ? ORDER BY views DESC LIMIT 5`).bind(clientSlug).all();
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return jsonResponse({ error: "Gagal mengambil data analitik: " + errText }, res.status);
-    }
-
-    const data = await res.json();
-
-    // Injeksi Telemetri Cloudflare Edge Gratis untuk Tampilan Admin Panel
-    const cf = request.cf || {};
-    const rawAsOrg = cf.asOrganization || request.headers.get("cf-as-organization") || "";
-    const coloCode = cf.colo || "CGK";
-
-    data.edgeTelemetry = {
-      colo: coloCode,
-      coloName: resolveColoName(coloCode),
-      protocol: cf.httpProtocol || "HTTP/3",
-      visitorISP: formatISPName(rawAsOrg),
-      visitorRegion: cf.region || cf.regionCode || "Banten / Jabodetabek",
-      country: cf.country || "ID",
-      edgeLatencyEstimate: "~8ms"
+    const payload = {
+      summary: { views: totalViews, product_clicks: totalClicks, social_clicks: totalSocials, ctr: ctr },
+      trends: trendsData.reverse(),
+      top_products: topProducts,
+      devices: devices,
+      referrers: referrers,
+      locations: locationsData
     };
 
-    const response = jsonResponse(data, 200, {
-      "Cache-Control": "public, max-age=60, s-maxage=60",
-      "CF-Cache-Status": "MISS"
-    });
-
-    if (ctx && typeof ctx.waitUntil === "function") {
-      ctx.waitUntil(cache.put(cacheKey, response.clone()));
-    }
+    const response = jsonResponse(payload, 200, { 'Cache-Control': 'public, max-age=60, s-maxage=60' });
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(cache.put(cacheKey, response.clone()));
     return response;
   } catch (err) {
-    return jsonResponse({ error: "Kesalahan internal analitik: " + (err && err.message) }, 500);
+    return jsonResponse({ error: 'Kesalahan D1 analitik: ' + err.message }, 500);
   }
 }
+
 
 // --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID & Max Products & Edge Telemetry) ---
 async function handlePublicStore(request, env, ctx) {

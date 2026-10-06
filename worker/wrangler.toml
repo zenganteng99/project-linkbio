@@ -37,3 +37,11 @@ PRIMARY_DOMAIN = "https://customlink-webhook.modernshopp.workers.dev"
 #   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 # Deploy: wrangler deploy --keep-vars
 # ---------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------
+# CLOUDFLARE D1 - Serverless SQLite untuk Analytics (Decoupled dari Supabase)
+# --------------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "customlink-analytics"
+database_id = "9e1403da-dcac-4713-820a-1f78c63ff43d"
