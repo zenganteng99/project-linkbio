@@ -1,4 +1,4 @@
-﻿// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
+// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
 //   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID & Max Products)
@@ -51,6 +51,7 @@ async function handleUploadImage(request, env) {
       return jsonResponse({ error: "File is required" }, 400);
     }
     
+    /* DISABLED - Orphan GC will handle cleanup later
     // Delete old file if oldUrl is provided
     if (oldUrl && typeof oldUrl === 'string') {
       const oldPath = extractPathFromUrl(oldUrl);
@@ -62,6 +63,7 @@ async function handleUploadImage(request, env) {
         }
       }
     }
+    */
     
     // Generate unique filename
     const ext = file.name ? file.name.split(".").pop() : 'jpg';
@@ -1393,6 +1395,76 @@ async function handlePageRender(request, env, ctx) {
   return finalResponse;
 }
 
+
+// --- Handler: POST /api/admin/run-gc (Orphan Garbage Collector) ---
+async function handleGarbageCollector(env) {
+  if (!env.ASSETS_BUCKET) {
+    console.log('[GC] ASSETS_BUCKET tidak terkonfigurasi');
+    return { success: false, message: 'ASSETS_BUCKET tidak terkonfigurasi' };
+  }
+
+  const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
+  if (!sbKey) {
+    console.log('[GC] Supabase key belum ada');
+    return { success: false, message: 'Supabase key belum ada' };
+  }
+
+  try {
+    const [prodRes, setRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/products?select=image_url', {
+        headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/settings?select=profile_image_url,background_url', {
+        headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
+      })
+    ]);
+
+    const products = await prodRes.json();
+    const settings = await setRes.json();
+
+    const activeKeys = new Set();
+    const collectKey = (url) => {
+      if (!url || typeof url !== 'string') return;
+      const match = url.match(/\/cdn\/(.+)/);
+      if (match) activeKeys.add(decodeURIComponent(match[1].split('?')[0]));
+    };
+
+    if (Array.isArray(products)) products.forEach((p) => collectKey(p.image_url));
+    if (Array.isArray(settings)) settings.forEach((s) => {
+      collectKey(s.profile_image_url);
+      collectKey(s.background_url);
+    });
+
+    let truncated = true;
+    let cursor = undefined;
+    let deletedCount = 0;
+    let keptCount = 0;
+    const fortyEightHoursAgo = Date.now() - 48 * 60 * 60 * 1000;
+
+    while (truncated) {
+      const list = await env.ASSETS_BUCKET.list({ prefix: 'assets/', cursor });
+      for (const obj of list.objects) {
+        const uploadTime = obj.uploaded ? obj.uploaded.getTime() : 0;
+        if (activeKeys.has(obj.key) || uploadTime > fortyEightHoursAgo) {
+          keptCount++;
+          continue;
+        }
+        await env.ASSETS_BUCKET.delete(obj.key);
+        deletedCount++;
+        console.log('[GC] Deleted orphan: ' + obj.key);
+      }
+      truncated = list.truncated;
+      cursor = list.cursor;
+    }
+
+    console.log('[GC] Sukses: ' + deletedCount + ' file sampah dihapus, ' + keptCount + ' file aktif dipertahankan.');
+    return { success: true, deleted: deletedCount, kept: keptCount };
+  } catch (err) {
+    console.error('[GC Error]:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 // --- Router Utama ---
 export default {
   async fetch(request, env, ctx) {
@@ -1435,6 +1507,14 @@ export default {
     }
 
     
+    
+
+    // GC Routes - Manual trigger for testing
+    if (url.pathname === "/api/admin/run-gc" && request.method === "POST") {
+      const gcResult = await handleGarbageCollector(env);
+      return jsonResponse(gcResult);
+    }
+
     // R2 Storage Routes
     if (url.pathname.startsWith("/cdn/") && request.method === "GET") {
       return handleCDN(request, env);
@@ -1453,5 +1533,11 @@ export default {
     }
 
     return jsonResponse({ success: false, message: "Not found." }, 404);
+  },
+
+  // --- Scheduled: Orphan Garbage Collector (setiap 5 hari jam 20:00) ---
+  async scheduled(event, env, ctx) {
+    console.log("[Cron] Starting scheduled garbage collection...");
+    ctx.waitUntil(handleGarbageCollector(env));
   }
 };
