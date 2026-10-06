@@ -258,11 +258,11 @@
                 if (s.hero_title) document.getElementById("hero-title").textContent = s.hero_title;
                 if (s.hero_subtitle) document.getElementById("hero-subtitle").textContent = s.hero_subtitle;
                 if (s.background_url) {
-                    document.getElementById("hero-bg").style.backgroundImage = `url('${s.background_url}')`;
+                    document.getElementById("hero-bg").style.backgroundImage = `url('${getImageUrlWithCacheBust(s.background_url)}')`;
                 }
                 if (s.profile_image_url) {
                     const pImg = document.getElementById("profile-image");
-                    pImg.style.backgroundImage = `url('${s.profile_image_url}')`;
+                    pImg.style.backgroundImage = `url('${getImageUrlWithCacheBust(s.profile_image_url)}')`;
                     pImg.style.backgroundSize = "cover";
                     pImg.style.backgroundPosition = "center";
                     pImg.innerHTML = "";
@@ -350,7 +350,7 @@
                     : `<div class="absolute -top-2.5 -left-2.5 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-10 border border-white/30 tracking-wider">#${num}</div>`;
                 
                 const imgHtml = p.image_url 
-                    ? `<img src="${p.image_url}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">🛍️</div>`
+                    ? `<img src="${getImageUrlWithCacheBust(p.image_url)}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">🛍️</div>`
                     : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">🛍️</div>`;
 
                 const productIdentifier = p.id || p.title || ('prod-' + num);
@@ -439,6 +439,14 @@
             renderProducts(globalProducts);
         }
 
+        // Helper untuk cache busting gambar
+        let currentCacheTimestamp = 0;
+        function getImageUrlWithCacheBust(imageUrl) {
+            if (!imageUrl) return "";
+            const separator = imageUrl.includes("?") ? "async function loadAndRender(slug, cacheKey) {" : "?";
+            return imageUrl + separator + "_cb=" + currentCacheTimestamp;
+        }
+
         async function loadAndRender(slug, cacheKey) {
             const data = await fetchStoreData(slug);
             const settings = data.settings;
@@ -446,6 +454,10 @@
             try { sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products })); } catch (e) {}
             prepareAndRenderProducts(products);
             renderHero(settings);
+            // Set timestamp for image cache busting
+            if (data.edgeInfo && data.edgeInfo.cacheTimestamp) {
+                currentCacheTimestamp = data.edgeInfo.cacheTimestamp;
+            }
         }
 
         async function backgroundSync(slug, cacheKey) {

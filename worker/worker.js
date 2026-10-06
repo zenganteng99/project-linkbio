@@ -1148,7 +1148,8 @@ async function handlePublicStore(request, env, ctx) {
         colo: coloCode,
         coloName: resolveColoName(coloCode),
         protocol: cf.httpProtocol || "HTTP/3",
-        region: cf.region || cf.regionCode || "ID"
+        region: cf.region || cf.regionCode || "ID",
+        cacheTimestamp: Date.now() // For client-side image cache busting
       }
     };
     const cacheHeader = isNoCache 
