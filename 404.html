@@ -443,7 +443,7 @@
         let currentCacheTimestamp404 = 0;
         function getImageUrlWithCacheBust404(imageUrl) {
             if (!imageUrl) return "";
-            const separator = imageUrl.includes("?") ? "async function loadAndRender(slug, cacheKey) {" : "?";
+            const separator = imageUrl.includes("?") ? "&" : "?";
             return imageUrl + separator + "_cb=" + currentCacheTimestamp404;
         }
 

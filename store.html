@@ -443,10 +443,9 @@
         let currentCacheTimestamp = 0;
         function getImageUrlWithCacheBust(imageUrl) {
             if (!imageUrl) return "";
-            const separator = imageUrl.includes("?") ? "async function loadAndRender(slug, cacheKey) {" : "?";
+            const separator = imageUrl.includes("?") ? "&" : "?";
             return imageUrl + separator + "_cb=" + currentCacheTimestamp;
         }
-
         async function loadAndRender(slug, cacheKey) {
             const data = await fetchStoreData(slug);
             const settings = data.settings;
