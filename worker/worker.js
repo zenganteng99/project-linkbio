@@ -1327,7 +1327,7 @@ async function handlePageRender(request, env, ctx) {
     return fetch(PAGES_ORIGIN + targetPath, { headers: { "Host": pagesHost } });
   }
 
-  const cacheKey = new Request(url.href, request);
+  const cacheKey = new Request(url.href);
   const cache = caches.default;
   const cachedPage = await cache.match(cacheKey);
   if (cachedPage) return cachedPage;

@@ -1394,17 +1394,19 @@
 
                 // 3. Upload Foto Produk ke R2 & Hapus Foto Produk Lama
                 for (let i = 0; i < maxLimit; i++) {
-                    const id = document.getElementById(`product_id_${i}`).value;
-                    const title = document.getElementById(`title_${i}`).value.trim();
-                    const price = document.getElementById(`price_${i}`).value.trim();
-                    const link = document.getElementById(`link_${i}`).value.trim();
+                    const idEl = document.getElementById(`product_id_${i}`);
+                    if (!idEl) continue;
+                    const id = idEl.value;
+                    const title = document.getElementById(`title_${i}`)?.value.trim() || "";
+                    const price = document.getElementById(`price_${i}`)?.value.trim() || "";
+                    const link = document.getElementById(`link_${i}`)?.value.trim() || "";
                     const sortOrder = i + 1;
-                    const isActive = document.querySelector(`[data-product="${i}"]`).checked;
+                    const isActive = document.querySelector(`[data-product="${i}"]`)?.checked ?? true;
                     const imgInput = document.getElementById(`img_${i}`);
-                    const originalImg = document.getElementById(`original_img_${i}`).value;
-                    
+                    const originalImg = document.getElementById(`original_img_${i}`)?.value || "";
+
                     let imageUrl = originalImg;
-                    if (imgInput.files[0]) {
+                    if (imgInput && imgInput.files[0]) {
                         if (originalImg) await deleteImage(originalImg);
                         imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`, originalImg);
                     }
@@ -1418,6 +1420,7 @@
                         sort_order: sortOrder,
                         is_active: isActive
                     });
+                }
                 }
 
                 let voucherToUpdate = "";

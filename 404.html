@@ -234,7 +234,7 @@
         
         async function fetchStoreData(slug) {
             try {
-                const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { cache: "no-cache" });
+                const res = await fetch(`${STORE_ENDPOINT}?slug=${encodeURIComponent(slug)}&_t=${Date.now()}`, { cache: "no-cache" });
                 if (!res.ok) throw new Error("Gagal mengambil data dari Edge");
                 const data = await res.json();
                 
