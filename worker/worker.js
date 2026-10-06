@@ -1112,7 +1112,7 @@ async function handleAdminAnalytics(request, env, ctx) {
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
-  const isNoCache = url.searchParams.get("nocache") === "1" || url.searchParams.has("_t");
+  const isNoCache = url.searchParams.get("nocache") === "1";
 
   const cacheKey = new Request(url.origin + "/api/public/store?slug=" + encodeURIComponent(slug));
   const cache = caches.default;
