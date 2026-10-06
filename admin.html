@@ -509,6 +509,7 @@
         let originalSettings = {};
         let originalProducts = [];
         let influencerData = null;
+        let brokerData = null;
         let selectedUpgradeTarget = null;
         let visibleProductCount = 10;
         
@@ -1191,6 +1192,17 @@
                 console.error("Gagal memuat statistik komisi:", err);
             }
         }
+
+        async function loadBrokerStats(bSlug) {
+            try {
+                const { count } = await sbClient.from("influencers").select("*", { count: 'exact', head: true }).eq("referred_by", bSlug);
+                document.getElementById("stat_broker_influencers").textContent = (count || 0) + " Akun";
+                const { data } = await sbClient.from("transactions").select("broker_commission_amount").eq("broker_slug", bSlug);
+                let tComm = 0;
+                if(data) data.forEach(tx => tComm += (Number(tx.broker_commission_amount) || 0));
+                document.getElementById("stat_broker_commission").textContent = "Rp " + tComm.toLocaleString("id-ID");
+            } catch (err) {}
+        }
         
         function populateForm() {
             document.getElementById("current-slug").textContent = currentSlug;
@@ -1248,10 +1260,20 @@
             if (influencerData) {
                 infSection.classList.remove("hidden");
                 document.getElementById("influencer_voucher_code").value = influencerData.voucher_code || "";
-                document.getElementById("locked_discount_val").textContent = (influencerData.discount_percent || 30) + "%";
+                const cRate = influencerData.commission_rate || 30;
+                document.getElementById("locked_discount_val").parentElement.innerHTML = `Diskon pembeli: <span class="font-bold text-gray-600">30%</span> | Hak Komisi Anda: <span class="font-bold text-green-600">${cRate}%</span>`;
                 loadInfluencerStats(influencerData.voucher_code);
             } else {
                 infSection.classList.add("hidden");
+            }
+
+            const brokerSection = document.getElementById("broker-section");
+            if (brokerData) {
+                brokerSection.classList.remove("hidden");
+                document.getElementById("broker_code_display").value = brokerData.broker_code || "";
+                loadBrokerStats(brokerData.slug);
+            } else {
+                brokerSection?.classList.add("hidden");
             }
         }
 
@@ -1285,6 +1307,7 @@
                     productsData = data.products || [];
                     originalProducts = JSON.parse(JSON.stringify(productsData));
                     influencerData = data.influencer || null;
+                    brokerData = data.broker || null;
 
                     const maxLimit = settingsData.max_products || 10;
                     while (productsData.length < maxLimit) {

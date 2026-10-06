@@ -485,7 +485,7 @@
 
                 <!-- Voucher Input Section -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Kode Voucher / Endorse (Opsional)</label>
+                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Kode Endorse / Kode Broker</label>
                     <div class="flex gap-2">
                         <input type="text" id="couponInput" placeholder="Masukkan kode voucher" class="flex-1 bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-amber-400 font-bold uppercase focus:outline-none focus:border-purple-500">
                         <button type="button" onclick="applyCoupon()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-3 rounded-xl text-xs transition">
@@ -645,6 +645,11 @@
                         feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
                         document.getElementById('discountLabel').innerText = `Diskon Voucher (${appliedDiscountPercent}%):`;
                         document.getElementById('discountRow').classList.remove('hidden');
+                    } else if (result.type === 'broker') {
+                        appliedDiscountPercent = 100;
+                        isEndorseSuccess = true;
+                        discountAmount = Math.floor(packagePrice * (appliedDiscountPercent / 100));
+                        document.getElementById('coupon-msg').innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Kode Broker Valid! Akses Sub-Affiliate Terbuka.`;
                     }
                 } else {
                     appliedDiscountPercent = 0;

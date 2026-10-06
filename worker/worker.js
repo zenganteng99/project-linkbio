@@ -1168,6 +1168,15 @@ async function handleCheckVoucher(request, env) {
       return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
     }
 
+    // Check if code is a Broker Code (before influencer check)
+    const brokerRes = await fetch(`${SUPABASE_URL}/rest/v1/brokers?broker_code=ilike.${encodeURIComponent(code)}&select=*`, {
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    });
+    const brokerList = await brokerRes.json();
+    if (brokerList && brokerList.length > 0) {
+      return jsonResponse({ valid: true, type: "broker", discount_percent: 100, code: brokerList[0].broker_code });
+    }
+
     const infRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers?voucher_code=ilike.${encodeURIComponent(code)}&select=discount_percent`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
@@ -1204,12 +1213,30 @@ async function handleRegisterInfluencer(request, env) {
   }
 
   try {
+    let isBrokerRoute = false;
+    let brokerSlug = null;
+    let commRate = 30; // Default komisi untuk rekrutan Admin langsung
+
+    // Cek apakah kode adalah Voucher Endorse Master
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}&is_used=eq.false&select=id`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
     const checkList = await checkRes.json();
+    
     if (!checkList || checkList.length === 0) {
-      return jsonResponse({ success: false, message: "Voucher endorse tidak sah atau sudah terpakai." }, 400);
+      // Jika bukan endorse biasa, cek apakah ini Kode Broker
+      const bRes = await fetch(`${SUPABASE_URL}/rest/v1/brokers?broker_code=ilike.${encodeURIComponent(endorseCode)}&select=slug`, {
+        headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+      });
+      const bList = await bRes.json();
+      
+      if (bList && bList.length > 0) {
+        isBrokerRoute = true;
+        brokerSlug = bList[0].slug;
+        commRate = 20; // Komisi untuk Sub-Affiliate
+      } else {
+        return jsonResponse({ success: false, message: "Kode voucher/broker tidak sah atau sudah terpakai." }, 400);
+      }
     }
 
     // --- AUTO-CREATE CLIENT & SETTINGS FOR INFLUENCER ---
@@ -1266,6 +1293,8 @@ async function handleRegisterInfluencer(request, env) {
         client_slug: slug,
         voucher_code: voucher,
         discount_percent: 30,
+        commission_rate: commRate,
+        referred_by: brokerSlug,
         whatsapp: whatsapp,
         bank_name: bankName,
         bank_account: bankAccount,
@@ -1276,15 +1305,18 @@ async function handleRegisterInfluencer(request, env) {
       return jsonResponse({ success: false, message: "Gagal menyimpan: Client Slug mungkin sudah terpakai." }, 400);
     }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}`, {
-      method: "PATCH",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ is_used: true })
-    });
+    // Only mark endorse voucher as used if it's not a broker route
+    if (!isBrokerRoute) {
+      await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}`, {
+        method: "PATCH",
+        headers: {
+          "apikey": serviceKey,
+          "Authorization": `Bearer ${serviceKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ is_used: true })
+      });
+    }
 
     return jsonResponse({ success: true, message: "Aktivasi berhasil!" }, 200);
   } catch (err) {
