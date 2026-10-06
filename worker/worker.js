@@ -1112,7 +1112,7 @@ async function handleAdminAnalytics(request, env, ctx) {
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
-  const isNoCache = url.searchParams.get("nocache") === "1";
+  const isNoCache = url.searchParams.get("nocache") === "1" || url.searchParams.has("_t");
 
   const cacheKey = new Request(url.origin + "/api/public/store?slug=" + encodeURIComponent(slug));
   const cache = caches.default;
@@ -1151,12 +1151,13 @@ async function handlePublicStore(request, env, ctx) {
         region: cf.region || cf.regionCode || "ID"
       }
     };
-
+    const cacheHeader = isNoCache 
+      ? "no-store, no-cache, must-revalidate" 
+      : "public, max-age=0, s-maxage=300, must-revalidate";
     const response = jsonResponse(payload, 200, {
-      "Cache-Control": "public, max-age=0, s-maxage=300, must-revalidate",
-      "CF-Cache-Status": "MISS"
+      "Cache-Control": cacheHeader,
+      "CF-Cache-Status": isNoCache ? "BYPASS" : "MISS"
     });
-
     if (ctx && typeof ctx.waitUntil === "function") {
       ctx.waitUntil(cache.put(cacheKey, response.clone()));
     }

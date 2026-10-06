@@ -1410,7 +1410,6 @@
                         if (originalImg) await deleteImage(originalImg);
                         imageUrl = await uploadImage(imgInput.files[0], `product_${currentSlug}_${sortOrder}`, originalImg);
                     }
-
                     productsPayload.push({
                         id: id || null,
                         title: title,
@@ -1420,7 +1419,6 @@
                         sort_order: sortOrder,
                         is_active: isActive
                     });
-                }
                 }
 
                 let voucherToUpdate = "";
