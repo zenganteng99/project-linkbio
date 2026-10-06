@@ -39,7 +39,7 @@ SUB_MERCHANT_ID = "d5831d89"
 DANA_CHANNEL_ID = "95221"
 
 # Primary domain untuk CDN URL
-PRIMARY_DOMAIN = "https://customlink.pages.dev"
+PRIMARY_DOMAIN = "https://customlink-webhook.modernshopp.workers.dev"
 
 # ---------------------------------------------------------------------------
 # VARIABEL RAHASIA — JANGAN ditaruh di file ini. Set dari terminal:
