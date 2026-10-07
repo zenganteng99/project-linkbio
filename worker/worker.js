@@ -1002,8 +1002,16 @@ async function handleTrack(request, env, ctx) {
     const clientSlug = (body.clientSlug || body.slug || 'default').trim();
     const eventType = body.eventType || 'view';
     const targetId = String(body.targetId || '').trim();
-    const cfDevice = (request.headers.get('cf-device-type') || 'desktop').toLowerCase();
-    const deviceType = (cfDevice === 'mobile' || cfDevice === 'tablet') ? 'mobile' : 'desktop';
+    const cfDevice = request.headers.get('cf-device-type');
+    let deviceType = 'desktop';
+    if (cfDevice) {
+        deviceType = (cfDevice.toLowerCase() === 'mobile' || cfDevice.toLowerCase() === 'tablet') ? 'mobile' : 'desktop';
+    } else {
+        const uaString = ua.toLowerCase();
+        if (/(android|webos|iphone|ipad|ipod|blackberry|windows phone|mobile)/i.test(uaString)) {
+            deviceType = 'mobile';
+        }
+    }
     let rawRef = (body.referrer || 'direct').toLowerCase();
     let referrer = 'direct';
     if (rawRef.includes('instagram.com')) referrer = 'instagram';
