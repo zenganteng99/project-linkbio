@@ -648,6 +648,17 @@ async function handleScrapeProduct(request) {
   }
 
   const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
+  const isTokopedia = targetUrl.includes("tokopedia") || targetUrl.includes("tokopedia.link");
+  
+  // Tokopedia shortlinks need client-side scraping
+  if (isTokopedia) {
+    return jsonResponse({
+      success: false,
+      requiresClientScraping: true,
+      targetUrl: targetUrl,
+      message: "Tokopedia. Scraping dari browser..."
+    }, 200);
+  }
 
   try {
     // ============================================================
