@@ -629,7 +629,7 @@ function extractTitleFromUrlSlug(urlStr) {
   return "";
 }
 
-// --- Handler: POST /api/scrape-product (Redirect Chaser -> ID Extractor -> Direct API) ---
+// --- Handler: POST /api/scrape-product (Direct API + CORS Proxy Fallback) ---
 async function handleScrapeProduct(request) {
   let body;
   try {
@@ -648,303 +648,248 @@ async function handleScrapeProduct(request) {
   }
 
   const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
+  const isTokopedia = targetUrl.includes("tokopedia") || targetUrl.includes("tokopedia.link");
 
   try {
     // ============================================================
-    // SHOPEE: Redirect Chaser -> ID Extractor -> Direct API
+    // SHOPEE: Direct API Approach
     // ============================================================
     if (isShopee) {
+      // STEP 1: Get long URL via redirect
+      let longUrl = targetUrl;
+      
       const shopeeHeaders = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8",
         "Upgrade-Insecure-Requests": "1"
       };
 
-      // STEP 1: Catch redirect to get long URL (NO body fetch!)
-      let longUrl = targetUrl;
-      let redirectCount = 0;
-      const maxRedirects = 5;
-
-      while (redirectCount < maxRedirects) {
-        const resp = await fetch(longUrl, {
-          headers: shopeeHeaders,
-          redirect: "manual"
-        });
-
+      // Chase redirects to get long URL
+      for (let i = 0; i < 5; i++) {
+        const resp = await fetch(longUrl, { headers: shopeeHeaders, redirect: "manual" });
         if (resp.status >= 300 && resp.status < 400) {
           const loc = resp.headers.get("location");
           if (!loc) break;
-
-          // Resolve relative URLs
-          if (loc.startsWith("/")) {
-            longUrl = new URL(loc, longUrl).href;
-          } else if (loc.startsWith("http")) {
-            longUrl = loc;
-          } else {
-            break;
-          }
-
-          // Decode nested Shopee URLs
+          longUrl = loc.startsWith("http") ? loc : new URL(loc, longUrl).href;
+          
+          // Decode nested URL
           if (longUrl.includes("shopee")) {
             const urlObj = new URL(longUrl);
-            const nestedUrl = urlObj.searchParams.get("url")
-              || urlObj.searchParams.get("custom_url")
-              || urlObj.searchParams.get("deeplink")
-              || urlObj.searchParams.get("l");
-
-            if (nestedUrl) {
+            const nested = urlObj.searchParams.get("url") || urlObj.searchParams.get("custom_url") || urlObj.searchParams.get("l");
+            if (nested) {
               try {
-                let decoded = decodeURIComponent(nestedUrl);
+                let decoded = decodeURIComponent(nested);
                 if (decoded.includes("%")) decoded = decodeURIComponent(decoded);
                 if (decoded.startsWith("http")) longUrl = decoded;
               } catch (e) {}
             }
           }
-
-          redirectCount++;
         } else {
-          // Got final URL (200 or other)
           break;
         }
       }
 
-      console.log("Shopee long URL:", longUrl);
-
-      // STEP 2: Extract shopid and itemid from long URL
-      let shopId = null;
-      let itemId = null;
-
-      // Pattern 1: /product/-i.{shopid}.{itemid}
+      // STEP 2: Extract IDs
+      let shopId = null, itemId = null;
       const matchI = longUrl.match(/-i\.(\d+)\.(\d+)/);
-      // Pattern 2: /product/{shopid}/{itemid}
       const matchP = longUrl.match(/\/product\/(\d+)\/(\d+)/);
-      // Pattern 3: URL search params
-      try {
-        const urlObj = new URL(longUrl);
-        if (!shopId) shopId = urlObj.searchParams.get("shopid") || urlObj.searchParams.get("shop_id");
-        if (!itemId) itemId = urlObj.searchParams.get("itemid") || urlObj.searchParams.get("item_id");
-      } catch (e) {}
-
-      if (matchI) {
-        shopId = matchI[1];
-        itemId = matchI[2];
-      } else if (matchP) {
-        shopId = matchP[1];
-        itemId = matchP[2];
+      if (matchI) { shopId = matchI[1]; itemId = matchI[2]; }
+      else if (matchP) { shopId = matchP[1]; itemId = matchP[2]; }
+      else {
+        try {
+          const u = new URL(longUrl);
+          shopId = u.searchParams.get("shopid") || u.searchParams.get("shop_id");
+          itemId = u.searchParams.get("itemid") || u.searchParams.get("item_id");
+        } catch (e) {}
       }
 
-      console.log("Shopee IDs:", { shopId, itemId });
-
-      // STEP 3: Direct API call
       if (shopId && itemId) {
+        // STEP 3: Try Shopee API
         try {
-          // Try Shopee API v4
           const apiUrl = `https://shopee.co.id/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`;
           const apiResp = await fetch(apiUrl, {
-            headers: {
-              "User-Agent": shopeeHeaders["User-Agent"],
-              "Accept": "application/json",
-              "Referer": "https://shopee.co.id/",
-              "Origin": "https://shopee.co.id"
-            }
+            headers: { "User-Agent": shopeeHeaders["User-Agent"], "Accept": "application/json", "Referer": "https://shopee.co.id/" }
           });
 
           if (apiResp.ok) {
-            const apiData = await apiResp.json();
-            console.log("Shopee API response:", JSON.stringify(apiData).slice(0, 200));
-
-            if (apiData && apiData.data) {
-              const d = apiData.data;
-              let title = "";
-              let imageUrl = "";
+            const data = await apiResp.json();
+            if (data?.data?.name) {
+              let title = data.data.name.trim();
+              let imageUrl = data.data.image ? `https://cf.shopee.co.id/file/${data.data.image}` : "";
               let price = "";
-
-              // Extract name
-              if (d.name) {
-                title = d.name.trim();
+              
+              if (data.data.price) {
+                const p = Number(data.data.price);
+                if (p > 0) price = String(Math.floor(p / 100000));
+              } else if (data.data.price_min && data.data.price_max) {
+                const min = Math.floor(data.data.price_min / 100000);
+                const max = Math.floor(data.data.price_max / 100000);
+                price = min === max ? String(min) : `${min}-${max}`;
               }
 
-              // Extract image (try multiple fields)
-              if (d.image) {
-                imageUrl = `https://cf.shopee.co.id/file/${d.image}`;
-              } else if (d.images && d.images[0]) {
-                imageUrl = `https://cf.shopee.co.id/file/${d.images[0]}`;
-              }
-
-              // Extract price (Shopee uses price * 100000)
-              if (d.price) {
-                const rawPrice = Number(d.price);
-                if (rawPrice > 0) {
-                  price = String(Math.floor(rawPrice / 100000));
-                }
-              } else if (d.price_min && d.price_max) {
-                const minPrice = Math.floor(d.price_min / 100000);
-                const maxPrice = Math.floor(d.price_max / 100000);
-                price = (minPrice === maxPrice) ? String(minPrice) : `${minPrice}-${maxPrice}`;
-              }
-
-              // Anti-garbage filter
-              if (title) {
-                title = decodeHtmlEntities(title)
-                  .replace(/\s*[|\-]\s*(Shopee Indonesia|Tokopedia|TikTok Shop|Lazada).*$/gi, "")
-                  .replace(/^(Jual\s+|Beli\s+)/i, "")
-                  .replace(/\s{2,}/g, " ")
-                  .trim();
-
-                const tLower = title.toLowerCase();
-                const garbagePatterns = [
-                  "situs belanja online", "shopee indonesia", "tokopedia", "tiktok shop",
-                  "attention required", "cloudflare", "access denied",
-                  "tanstack", "react", "webpack", "vite",
-                  "hotjar", "segment", "sentry", "qjypxemyj", "undefined", "null"
-                ];
-
-                const isGarbage = garbagePatterns.some(p => tLower.includes(p))
-                  || /^\s*[a-z0-9]{7,15}\s*$/i.test(title)
-                  || title.length < 3 || title.length > 300;
-
-                if (isGarbage) title = "";
-              }
-
-              // Validate image
-              if (imageUrl) {
-                const imgLower = imageUrl.toLowerCase();
-                if (["logo", "icon", "avatar", "captcha", "badge", "placeholder"].some(p => imgLower.includes(p))) {
-                  imageUrl = "";
-                }
-              }
-
+              // Clean title
+              title = decodeHtmlEntities(title).replace(/\s*[|\-]\s*(Shopee Indonesia|Tokopedia|TikTok).*$/gi, "").replace(/^(Jual\s+)/i, "").trim();
+              if (title.length < 3 || title.length > 300) title = "";
+              
               if (title || imageUrl) {
-                return jsonResponse({
-                  success: true,
-                  data: {
-                    title: title ? title.slice(0, 150) : "",
-                    imageUrl: imageUrl || "",
-                    price: price || "",
-                    source: "shopee-api"
-                  }
-                }, 200);
+                return jsonResponse({ success: true, data: { title, imageUrl, price, source: "shopee-api" } }, 200);
               }
             }
-          } else {
-            console.log("Shopee API failed:", apiResp.status);
           }
         } catch (e) {
           console.log("Shopee API error:", e.message);
         }
       }
 
-      // Shopee API failed, try Googlebot fallback
-      console.log("Shopee API failed, trying Googlebot fallback...");
+      // STEP 4: CORS Proxy Fallback
+      console.log("Shopee API blocked, trying CORS proxy...");
+      const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(longUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(longUrl)}`
+      ];
+
+      for (const proxyUrl of proxies) {
+        try {
+          const htmlResp = await fetch(proxyUrl, { headers: { "User-Agent": shopeeHeaders["User-Agent"] } });
+          if (htmlResp.ok) {
+            const html = await htmlResp.text();
+            
+            // Try to extract JSON from __NEXT_DATA__
+            const jsonMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
+              || html.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/i);
+            
+            if (jsonMatch && jsonMatch[1]) {
+              try {
+                const jsonData = JSON.parse(jsonMatch[1].trim());
+                let title = "", imageUrl = "", price = "";
+                
+                // Navigate JSON
+                const paths = {
+                  name: [['props','pageProps','product','name'], ['pageProps','product','name'], ['initialData','name']],
+                  image: [['props','pageProps','product','image'], ['props','pageProps','product','images',0], ['pageProps','product','image']],
+                  price: [['props','pageProps','product','price'], ['pageProps','product','price']]
+                };
+
+                for (const path of paths.name) {
+                  let v = jsonData;
+                  for (const k of path) v = v?.[k];
+                  if (v && typeof v === 'string' && v.length > 5) { title = v.trim(); break; }
+                }
+
+                for (const path of paths.image) {
+                  let v = jsonData;
+                  for (const k of path) v = v?.[k];
+                  if (v) {
+                    imageUrl = typeof v === 'string' ? (v.startsWith('http') ? v : `https://cf.shopee.co.id/file/${v}`) : "";
+                    if (imageUrl) break;
+                  }
+                }
+
+                for (const path of paths.price) {
+                  let v = jsonData;
+                  for (const k of path) v = v?.[k];
+                  if (v) {
+                    const p = Number(v);
+                    if (p > 0) { price = String(Math.floor(p > 1000000 ? p / 100000 : p)); break; }
+                  }
+                }
+
+                // Clean
+                title = decodeHtmlEntities(title).replace(/\s*[|\-]\s*(Shopee Indonesia).*$/gi, "").trim();
+                const tLower = title.toLowerCase();
+                if (tLower.includes("shopee indonesia") || tLower.includes("situs belanja") || title.length < 3) title = "";
+                
+                if (title || imageUrl) {
+                  return jsonResponse({ success: true, data: { title, imageUrl, price, source: "proxy" } }, 200);
+                }
+              } catch (e) {
+                console.log("JSON parse error:", e.message);
+              }
+            }
+
+            // OG fallback
+            const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+            const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+            
+            if (ogTitle || ogImage) {
+              return jsonResponse({
+                success: true,
+                data: { 
+                  title: ogTitle ? ogTitle[1].trim().replace(/\s*[|\-]\s*Shopee.*$/gi, "").trim() : "",
+                  imageUrl: ogImage ? ogImage[1].trim() : "", 
+                  price: "",
+                  source: "proxy-og" 
+                }
+              }, 200);
+            }
+          }
+        } catch (e) {
+          console.log(`Proxy ${proxyUrl} error:`, e.message);
+        }
+      }
     }
 
     // ============================================================
-    // FALLBACK: Googlebot Cloaking (TikTok, Tokopedia, Others)
+    // TIKTOK/TOKOPEDIA: Googlebot Cloaking (Works Fine)
     // ============================================================
     const botHeaders = {
       "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-      "Accept-Encoding": "gzip, deflate, br"
+      "Accept-Language": "en-US,en;q=0.5"
     };
 
-    try {
-      const htmlResp = await fetch(targetUrl, {
-        headers: botHeaders,
-        redirect: "follow"
-      });
-      const html = await htmlResp.text();
+    const htmlResp = await fetch(targetUrl, { headers: botHeaders, redirect: "follow" });
+    const html = await htmlResp.text();
 
-      let title = "";
-      let imageUrl = "";
-      let price = "";
+    let title = "", imageUrl = "", price = "";
 
-      // OG Title
-      const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
-        || html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      if (ogTitle) title = ogTitle[1].trim();
+    // OG Tags
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (ogTitle) title = ogTitle[1].trim();
 
-      // OG Image
-      const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-      if (ogImage) imageUrl = ogImage[1].trim();
+    const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    if (ogImage) imageUrl = ogImage[1].trim();
 
-      // JSON-LD
-      const jsonLd = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
-      if (jsonLd) {
-        try {
-          const ld = JSON.parse(jsonLd[1]);
-          if (ld["@type"] === "Product") {
-            if (!title && ld.name) title = ld.name;
-            if (!imageUrl && ld.image) {
-              imageUrl = Array.isArray(ld.image) ? ld.image[0] : (typeof ld.image === 'object' ? ld.image.url : ld.image);
-            }
-            if (!price && ld.offers?.price) {
-              price = String(Math.floor(Number(ld.offers.price)));
-            }
-          }
-        } catch (e) {}
-      }
-
-      // Meta Price
-      if (!price) {
-        const metaPrice = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
-        if (metaPrice) price = String(Math.floor(Number(metaPrice[1].replace(/[^\d.]/g, ""))));
-      }
-
-      // Anti-garbage filter
-      if (title) {
-        title = decodeHtmlEntities(title)
-          .replace(/\s*[|\-]\s*(Shopee Indonesia|Tokopedia|TikTok Shop|Lazada).*$/gi, "")
-          .replace(/^(Jual\s+|Beli\s+)/i, "")
-          .replace(/\s{2,}/g, " ")
-          .trim();
-
-        const tLower = title.toLowerCase();
-        const garbagePatterns = [
-          "situs belanja online", "shopee indonesia", "tokopedia", "tiktok shop",
-          "attention required", "cloudflare", "access denied",
-          "tanstack", "react", "undefined", "null"
-        ];
-
-        const isGarbage = garbagePatterns.some(p => tLower.includes(p))
-          || /^\s*[a-z0-9]{7,15}\s*$/i.test(title)
-          || title.length < 3 || title.length > 300;
-
-        if (isGarbage) title = "";
-      }
-
-      if (!title) title = extractTitleFromUrlSlug(targetUrl);
-
-      if (imageUrl) {
-        const imgLower = imageUrl.toLowerCase();
-        if (["logo", "icon", "avatar", "captcha", "badge", "placeholder"].some(p => imgLower.includes(p))) {
-          imageUrl = "";
+    // JSON-LD
+    const jsonLd = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (jsonLd) {
+      try {
+        const ld = JSON.parse(jsonLd[1]);
+        if (ld["@type"] === "Product") {
+          if (!title && ld.name) title = ld.name;
+          if (!imageUrl && ld.image) imageUrl = Array.isArray(ld.image) ? ld.image[0] : (typeof ld.image === 'object' ? ld.image.url : ld.image);
+          if (!price && ld.offers?.price) price = String(Math.floor(Number(ld.offers.price)));
         }
-      }
-
-      if (title || imageUrl) {
-        return jsonResponse({
-          success: true,
-          data: {
-            title: title ? title.slice(0, 150) : "",
-            imageUrl: imageUrl || "",
-            price: price || "",
-            source: "googlebot"
-          }
-        }, 200);
-      }
-    } catch (e) {
-      console.log("Googlebot fetch error:", e.message);
+      } catch (e) {}
     }
 
-    // All methods failed
-    return jsonResponse({
-      success: false,
-      message: "Gagal memproses detail produk. Tautan sangat diproteksi, silakan isi data manual."
-    }, 422);
+    // Meta Price
+    if (!price) {
+      const metaPrice = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
+      if (metaPrice) price = String(Math.floor(Number(metaPrice[1].replace(/[^\d.]/g, ""))));
+    }
+
+    // Clean
+    if (title) {
+      title = decodeHtmlEntities(title).replace(/\s*[|\-]\s*(Tokopedia|TikTok Shop|TikTok).*$/gi, "").replace(/^(Jual\s+)/i, "").trim();
+      const tLower = title.toLowerCase();
+      if (tLower.includes("tokopedia") || tLower.includes("tiktok") || tLower.includes("situs belanja") || title.length < 3) title = "";
+    }
+
+    if (!title) title = extractTitleFromUrlSlug(targetUrl);
+
+    if (imageUrl) {
+      const imgLower = imageUrl.toLowerCase();
+      if (["logo", "icon", "avatar", "captcha"].some(p => imgLower.includes(p))) imageUrl = "";
+    }
+
+    if (title || imageUrl) {
+      return jsonResponse({ success: true, data: { title, imageUrl, price, source: "googlebot" } }, 200);
+    }
+
+    return jsonResponse({ success: false, message: "Gagal memproses detail produk. Tautan sangat diproteksi, silakan isi data manual." }, 422);
 
   } catch (err) {
     return jsonResponse({ success: false, message: "Terjadi kesalahan internal server." }, 500);
