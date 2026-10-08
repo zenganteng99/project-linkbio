@@ -662,6 +662,7 @@ async function handleScrapeProduct(request) {
       };
       
       let finalUrl = targetUrl;
+      let isAppLink = false;
       
       // Chase redirects for shortlinks
       for (let i = 0; i < 5; i++) {
@@ -669,11 +670,36 @@ async function handleScrapeProduct(request) {
         if (resp.status >= 300 && resp.status < 400) {
           const loc = resp.headers.get('location');
           if (loc) {
+            // Detect app intent links
+            if (loc.startsWith('intent://')) {
+              isAppLink = true;
+              // Try to extract product URL from intent
+              const fallbackMatch = loc.match(/S.browser_fallback_url=([^;]+)/);
+              if (fallbackMatch) {
+                const fallbackUrl = decodeURIComponent(fallbackMatch[1]);
+                if (fallbackUrl.startsWith('http')) {
+                  finalUrl = fallbackUrl;
+                  isAppLink = false;
+                  continue;
+                }
+              }
+              break;
+            }
             finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).href;
             continue;
           }
         }
         break;
+      }
+      
+      // If it's an app-only link, return clear message
+      if (isAppLink) {
+        return jsonResponse({ 
+          success: false, 
+          requiresClientScraping: true, 
+          targetUrl: targetUrl,
+          message: 'Gunakan link Tokopedia web (tokopedia.com), bukan shortlink. Copy tautan produk dari menu "Salin Tautan" di app Tokopedia.' 
+        }, 200);
       }
       
       // Fetch the final page
