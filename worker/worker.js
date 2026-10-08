@@ -650,14 +650,96 @@ async function handleScrapeProduct(request) {
   const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
   const isTokopedia = targetUrl.includes("tokopedia") || targetUrl.includes("tokopedia.link");
   
-  // Tokopedia shortlinks need client-side scraping
+  // ============================================================
+  // TOKOPEDIA: Server-side scraping with Cloudflare
+  // ============================================================
   if (isTokopedia) {
-    return jsonResponse({
-      success: false,
-      requiresClientScraping: true,
-      targetUrl: targetUrl,
-      message: "Tokopedia. Scraping dari browser..."
-    }, 200);
+    try {
+      const tokpedHeaders = {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
+      };
+      
+      let finalUrl = targetUrl;
+      
+      // Chase redirects for shortlinks
+      for (let i = 0; i < 5; i++) {
+        const resp = await fetch(finalUrl, { headers: tokpedHeaders, redirect: 'manual' });
+        if (resp.status >= 300 && resp.status < 400) {
+          const loc = resp.headers.get('location');
+          if (loc) {
+            finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).href;
+            continue;
+          }
+        }
+        break;
+      }
+      
+      // Fetch the final page
+      const pageResp = await fetch(finalUrl, { headers: tokpedHeaders });
+      if (!pageResp.ok) {
+        return jsonResponse({ success: false, requiresClientScraping: true, targetUrl: targetUrl, message: 'Tokopedia blocked. Gunakan browser.' }, 200);
+      }
+      
+      const html = await pageResp.text();
+      let title = '', imageUrl = '', price = '';
+      
+      // JSON-LD Product schema
+      const ldMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+      if (ldMatches) {
+        for (const s of ldMatches) {
+          try {
+            const c = s.match(/>([\s\S]*?)<\/script>/i)?.[1];
+            if (c) {
+              const j = JSON.parse(c);
+              if (j['@type'] === 'Product') {
+                if (!title && j.name) title = j.name.replace(/\s*[-|]\s*Tokopedia.*$/i, '').trim();
+                if (!imageUrl && j.image) imageUrl = typeof j.image === 'string' ? j.image : j.image[0];
+                if (!price && j.offers?.price) price = String(Math.floor(Number(j.offers.price)));
+              }
+              if (j['@graph']) {
+                const p = j['@graph'].find(i => i['@type'] === 'Product');
+                if (p) {
+                  if (!title && p.name) title = p.name.replace(/\s*[-|]\s*Tokopedia.*$/i, '').trim();
+                  if (!imageUrl && p.image) imageUrl = typeof p.image === 'string' ? p.image : p.image[0];
+                  if (!price && p.offers?.price) price = String(Math.floor(Number(p.offers.price)));
+                }
+              }
+            }
+          } catch(e) {}
+        }
+      }
+      
+      // OG Tags fallback
+      if (!title) {
+        const m = html.match(/<meta[^>]+\bproperty=["']og:title["'][^>]+\bcontent=["']([^"']+)["']/i);
+        if (m?.[1]) title = m[1].replace(/\s*[-|]\s*Tokopedia.*$/i, '').trim();
+      }
+      if (!imageUrl) {
+        const m = html.match(/<meta[^>]+\bproperty=["']og:image["'][^>]+\bcontent=["']([^"']+)["']/i);
+        if (m?.[1]) imageUrl = m[1];
+      }
+      if (!price) {
+        const m = html.match(/<meta[^>]+\bproperty=["']product:price:amount["'][^>]+\bcontent=["']([^"']+)["']/i);
+        if (m?.[1]) price = String(Math.floor(Number(m[1])));
+      }
+      
+      // Fallback images from Tokopedia CDN
+      if (!imageUrl) {
+        const m = html.match(/https:\/\/images-tokopedia\.cdn\.one[^"'\s>]+/gi);
+        if (m?.[0]) imageUrl = m[0];
+      }
+      
+      if (title || imageUrl) {
+        return jsonResponse({ success: true, title: title, imageUrl: imageUrl, price: price, source: 'tokopedia-server' }, 200);
+      }
+      
+      return jsonResponse({ success: false, requiresClientScraping: true, targetUrl: targetUrl, message: 'Tokopedia blocked. Gunakan browser.' }, 200);
+      
+    } catch(e) {
+      return jsonResponse({ success: false, requiresClientScraping: true, targetUrl: targetUrl, message: 'Error: ' + e.message }, 200);
+    }
   }
 
   try {

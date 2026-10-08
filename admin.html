@@ -961,98 +961,10 @@
     }
 }
 // ============================================================
-// TOKOPEDIA SCRAPING - CORS Proxy Method
-// ============================================================
-async function scrapeTokopediaProxy(targetUrl, index) {
-    const proxies = [
-        (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-        (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`
-    ];
-    let title = "", imageUrl = "", price = "";
-    
-    for (const getProxy of proxies) {
-        try {
-            const proxyUrl = getProxy(targetUrl);
-            console.log("Tokopedia: Trying proxy...");
-            const res = await fetch(proxyUrl);
-            if (!res.ok) continue;
-            const data = await res.json();
-            const html = data.contents || data;
-            if (!html || html.length < 100) continue;
-            
-            // JSON-LD Product schema
-            const ld = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
-            if (ld) {
-                for (const s of ld) {
-                    try {
-                        const c = s.match(/>([\s\S]*?)<\/script>/i)?.[1];
-                        if (c) {
-                            const j = JSON.parse(c);
-                            if (j["@type"] === "Product") {
-                                if (!title && j.name) title = j.name.replace(/\s*[-|]\s*Tokopedia.*$/i, "").trim();
-                                if (!imageUrl && j.image) imageUrl = typeof j.image === 'string' ? j.image : j.image[0];
-                                if (!price && j.offers?.price) price = String(Math.floor(Number(j.offers.price)));
-                            }
-                            if (j["@graph"]) {
-                                const p = j["@graph"].find(i => i["@type"] === "Product");
-                                if (p) {
-                                    if (!title && p.name) title = p.name.replace(/\s*[-|]\s*Tokopedia.*$/i, "").trim();
-                                    if (!imageUrl && p.image) imageUrl = typeof p.image === 'string' ? p.image : p.image[0];
-                                    if (!price && p.offers?.price) price = String(Math.floor(Number(p.offers.price)));
-                                }
-                            }
-                        }
-                    } catch(e) {}
-                }
-            }
-            
-            // __NEXT_DATA__
-            if (!title || !imageUrl) {
-                const nd = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i)?.[1];
-                if (nd) {
-                    try {
-                        const json = JSON.parse(nd);
-                        const get = (o, p) => { let v = o; for (const k of p) v = v?.[k]; return v; };
-                        const tp = [["props","pageProps","productDetail","name"],["props","pageProps","product","name"]];
-                        for (const pa of tp) { const v = get(json, pa); if (v && typeof v === 'string') { title = v.replace(/\s*[-|]\s*Tokopedia.*$/i, "").trim(); break; } }
-                        const ip = [["props","pageProps","productDetail","imageUrl"],["props","pageProps","productDetail","images",0]];
-                        for (const pa of ip) { const v = get(json, pa); if (v) { imageUrl = String(v).replace(/^\/\//, 'https://'); break; } }
-                    } catch(e) {}
-                }
-            }
-            
-            // OG fallback
-            if (!title) { const m = html.match(/<meta[^>]+\bproperty=["']og:title["'][^>]+\bcontent=["']([^"']+)["']/i) || html.match(/<title[^>]*>([^<]+)<\/title>/i); if (m?.[1]) title = m[1].replace(/\s*[-|]\s*Tokopedia.*$/i, "").trim(); }
-            if (!imageUrl) { const m = html.match(/<meta[^>]+\bproperty=["']og:image["'][^>]+\bcontent=["']([^"']+)["']/i); if (m?.[1]) imageUrl = m[1]; }
-            if (!imageUrl) { const m = html.match(/https:\/\/images-tokopedia\.cdn\.one[^"'\s]+\.(jpg|jpeg|png|webp)/gi); if (m?.[0]) imageUrl = m[0]; }
-            if (!price) { const m = html.match(/<meta[^>]+\bproperty=["']product:price:amount["'][^>]+\bcontent=["']([^"']+)["']/i); if (m?.[1]) price = String(Math.floor(Number(m[1].replace(/[^\d]/g,'')))); }
-            
-            if (title || imageUrl) return { title, imageUrl, price };
-        } catch(e) { console.log("Proxy error:", e.message); }
-    }
-    return { title, imageUrl, price };
-}
-
-// ============================================================
 // CLIENT-SIDE SCRAPING: Direct browser fetch (real IP)
 // ============================================================
 async function scrapeClientSide(targetUrl, index) {
     const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
-    const isTokopedia = targetUrl.includes("tokopedia") || targetUrl.includes("tokopedia.link");
-    
-    // Tokopedia: Use CORS proxy
-    if (isTokopedia) {
-        console.log("Tokopedia detected, using CORS proxy...");
-        const result = await scrapeTokopediaProxy(targetUrl, index);
-        if (result.title || result.imageUrl) {
-            applyScrapeResult({ title: result.title, imageUrl: result.imageUrl, price: result.price, source: "tokopedia-proxy" }, index);
-            showToast("success", "Data Terisi!", "Data produk berhasil diambil dari Tokopedia.");
-        } else {
-            throw new Error("Tidak dapat mengekstrak data dari Tokopedia.");
-        }
-        return;
-    }
-    
     // Shopee: Direct fetch
 
     // Mobile browser headers (most likely to work)
