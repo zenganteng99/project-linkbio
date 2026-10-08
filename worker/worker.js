@@ -1,4 +1,4 @@
-// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
+﻿// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + Analytics + Edge Cache Engine + Upgrade Engine + Smart Auto-Scraper
 // Route:
 //   OPTIONS /api/*                  -> CORS preflight
 //   GET     /api/public/store       -> Katalog publik ter-cache (Termasuk Pixel Tracking ID & Max Products)
@@ -42,7 +42,6 @@ async function handleUploadImage(request, env) {
   }
   
   try {
-    // Parse FormData from request
     const formData = await request.formData();
     const file = formData.get("file");
     const oldUrl = formData.get("oldUrl");
@@ -51,46 +50,21 @@ async function handleUploadImage(request, env) {
       return jsonResponse({ error: "File is required" }, 400);
     }
     
-    /* DISABLED - Orphan GC will handle cleanup later
-    // Delete old file if oldUrl is provided
-    if (oldUrl && typeof oldUrl === 'string') {
-      const oldPath = extractPathFromUrl(oldUrl);
-      if (oldPath) {
-        try {
-          await env.ASSETS_BUCKET.delete(oldPath);
-        } catch (delErr) {
-          console.error('Failed to delete old file:', delErr);
-        }
-      }
-    }
-    */
-    
-    // Generate unique filename
     const ext = file.name ? file.name.split(".").pop() : 'jpg';
     const filename = 'assets/' + Date.now() + '_' + Math.random().toString(36).substring(7) + '.' + ext;
     
-    // Get file content and upload to R2
     const arrayBuffer = await file.arrayBuffer();
     const fileContent = new Uint8Array(arrayBuffer);
     
     await env.ASSETS_BUCKET.put(filename, fileContent, {
-      httpMetadata: {
-        contentType: file.type || "image/jpeg"
-      }
+      httpMetadata: { contentType: file.type || "image/jpeg" }
     });
     
-    // Return public URL
     const primaryDomain = env.PRIMARY_DOMAIN || "https://customlink.pages.dev";
     const publicUrl = primaryDomain + '/cdn/' + filename;
     
-    return jsonResponse({ 
-      success: true, 
-      url: publicUrl,
-      filename: filename
-    });
-    
+    return jsonResponse({ success: true, url: publicUrl, filename: filename });
   } catch (err) {
-    console.error('Upload error:', err);
     return jsonResponse({ error: "Upload failed: " + err.message }, 500);
   }
 }
@@ -115,6 +89,7 @@ async function handleDeleteImage(request, env) {
     return jsonResponse({ error: "Delete failed: " + err.message }, 500);
   }
 }
+
 async function handleClearCache(request, env) {
   try {
     const url = new URL(request.url);
@@ -124,7 +99,6 @@ async function handleClearCache(request, env) {
     }
     const cache = caches.default;
     const deletedUrls = [];
-    // Clear all possible cached versions across all domains
     const urlsToDelete = [
       `https://customlink.id/api/public/store?slug=${encodeURIComponent(slug)}`,
       `https://customlink.id/${encodeURIComponent(slug)}`,
@@ -137,15 +111,14 @@ async function handleClearCache(request, env) {
       try {
         await cache.delete(new Request(u));
         deletedUrls.push(u);
-      } catch(e) {
-        console.error("Failed to delete cache for:", u, e);
-      }
+      } catch(e) {}
     }
     return jsonResponse({ success: true, message: "Cache toko dibersihkan", cleared: deletedUrls });
   } catch (err) {
     return jsonResponse({ error: "Cache clear failed: " + err.message }, 500);
   }
 }
+
 async function handleCDN(request, env) {
   if (!env.ASSETS_BUCKET) {
     return new Response("R2 bucket not configured", { status: 500 });
@@ -169,6 +142,7 @@ async function handleCDN(request, env) {
     return new Response("Error retrieving file", { status: 500 });
   }
 }
+
 function extractPathFromUrl(url) {
   if (!url) return null;
   const match = url.match(/\/cdn\/(.+)/);
@@ -213,16 +187,11 @@ function resolveColoName(coloCode) {
 // =============================================================================
 // WEBHOOK SECURITY - Signature Verification Helpers
 // =============================================================================
-/**
- * Normalize public key PEM format for Web Crypto API
- * Accepts both PEM format and raw base64
- */
 function normalizePublicKeyPem(raw) {
   const key = String(raw || "").trim();
   if (!key) return "";
   if (key.includes("BEGIN PUBLIC KEY")) return key;
   
-  // If raw base64, convert to PEM
   const b64 = key.replace(/\s+/g, "");
   const lines = [];
   for (let i = 0; i < b64.length; i += 64) {
@@ -231,9 +200,6 @@ function normalizePublicKeyPem(raw) {
   return "-----BEGIN PUBLIC KEY-----\n" + lines.join("\n") + "\n-----END PUBLIC KEY-----";
 }
 
-/**
- * Convert PEM to ArrayBuffer for Web Crypto API
- */
 function pemToArrayBuffer(pem) {
   const b64 = pem
     .replace(/-----BEGIN [A-Z ]+-----/, "")
@@ -247,9 +213,6 @@ function pemToArrayBuffer(pem) {
   return bytes.buffer;
 }
 
-/**
- * Calculate SHA-256 hash of string, return hex
- */
 async function sha256Hex(str) {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);
@@ -258,56 +221,28 @@ async function sha256Hex(str) {
   return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Verify DANA SNAP signature using Web Crypto API (RSASSA-PKCS1-v1_5 SHA-256)
- * @param {string} endpointUrl - Full webhook URL path (e.g., "/api/webhook/gapura")
- * @param {string} rawBody - Raw request body string
- * @param {string} signatureB64 - Base64 encoded signature from X-SIGNATURE header
- * @param {string} timestamp - Timestamp from X-TIMESTAMP header
- * @param {string} publicKeyPem - Public key in PEM format
- * @returns {Promise<boolean>} - True if signature is valid
- */
 async function verifySnapSignature(endpointUrl, rawBody, signatureB64, timestamp, publicKeyPem) {
-  if (!publicKeyPem || !signatureB64 || !timestamp) {
-    console.warn("[Webhook] Missing parameters for signature verification");
-    return false;
-  }
+  if (!publicKeyPem || !signatureB64 || !timestamp) return false;
   
   try {
-    // Calculate SHA-256 of body
     const bodyHash = await sha256Hex(rawBody);
-    
-    // Build string to sign: POST:<endpoint>:<bodyHash>:<timestamp>
     const stringToSign = "POST:" + endpointUrl + ":" + bodyHash + ":" + timestamp;
-    
-    // Import public key
     const keyData = pemToArrayBuffer(publicKeyPem);
     const publicKey = await crypto.subtle.importKey(
-      "spki",
-      keyData,
-      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-      false,
-      ["verify"]
+      "spki", keyData, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]
     );
     
-    // Decode signature from base64
     const signatureBinary = atob(signatureB64);
     const signatureBytes = new Uint8Array(signatureBinary.length);
     for (let i = 0; i < signatureBinary.length; i++) {
       signatureBytes[i] = signatureBinary.charCodeAt(i);
     }
     
-    // Verify signature
     const isValid = await crypto.subtle.verify(
-      "RSASSA-PKCS1-v1_5",
-      publicKey,
-      signatureBytes,
-      new TextEncoder().encode(stringToSign)
+      "RSASSA-PKCS1-v1_5", publicKey, signatureBytes, new TextEncoder().encode(stringToSign)
     );
-    
     return isValid;
   } catch (err) {
-    console.error("[Webhook] Signature verification error:", err && err.message);
     return false;
   }
 }
@@ -391,7 +326,6 @@ function randomExternalId() {
 function resolveChannelId(env) {
   const raw = String((env && env.DANA_CHANNEL_ID) || "").trim();
   if (raw && raw.length <= 5) return raw;
-  if (raw) console.warn("[DANA] DANA_CHANNEL_ID diabaikan: " + raw.length + " karakter (wajib 1-5).");
   return DEFAULT_CHANNEL_ID;
 }
 
@@ -419,7 +353,7 @@ async function snapB2BSignature(endpointUrl, requestBody, privateKeyPem, timesta
   return btoa(bin);
 }
 
-// --- Handler: POST /api/create-payment (Mendukung Order Baru & Upgrade) ---
+// --- Handler: POST /api/create-payment ---
 async function handleCreatePayment(request, env) {
   let body;
   try {
@@ -453,7 +387,7 @@ async function handleCreatePayment(request, env) {
   if (!partnerId || !merchantId || !privateKeyPem) {
     return jsonResponse({
       success: false,
-      message: "Konfigurasi gateway pembayaran DANA di server belum lengkap. Hubungi admin."
+      message: "Konfigurasi gateway pembayaran DANA di server belum lengkap."
     }, 500);
   }
 
@@ -504,10 +438,7 @@ async function handleCreatePayment(request, env) {
   try {
     signature = await snapB2BSignature(DANA_CREATE_ORDER_PATH, requestBodyStr, privateKeyPem, timestamp);
   } catch (signErr) {
-    return jsonResponse({
-      success: false,
-      message: "Gagal menandatangani permintaan ke DANA. Hubungi admin."
-    }, 500);
+    return jsonResponse({ success: false, message: "Gagal menandatangani permintaan ke DANA." }, 500);
   }
 
   const snapHeaders = {
@@ -529,11 +460,7 @@ async function handleCreatePayment(request, env) {
       body: requestBodyStr
     });
   } catch (networkErr) {
-    return jsonResponse({
-      success: false,
-      message: "Tidak dapat menghubungi API gateway pembayaran DANA.",
-      detail: { orderId: orderId, stage: "network" }
-    }, 504);
+    return jsonResponse({ success: false, message: "Tidak dapat menghubungi API DANA.", detail: { stage: "network" }}, 504);
   }
 
   let rawText = await gatewayResponse.text();
@@ -542,38 +469,19 @@ async function handleCreatePayment(request, env) {
 
   if (!gatewayResponse.ok) {
     const gwMsg = extractGatewayMessage(gatewayData);
-    const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
-    const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
     const rejectStatus = gatewayResponse.status >= 400 && gatewayResponse.status < 500 ? gatewayResponse.status : 502;
-    return jsonResponse({
-      success: false,
-      orderId: orderId,
-      responseCode: gwCode || null,
-      debugMessage: gwDebug || null,
-      message: "API gateway pembayaran DANA menolak permintaan (HTTP " + gatewayResponse.status + (gwMsg ? " - " + gwMsg : "") + ").",
-      detail: gatewayData
-    }, rejectStatus);
+    return jsonResponse({ success: false, message: "API DANA menolak (HTTP " + gatewayResponse.status + (gwMsg ? " - " + gwMsg : "") + ").", detail: gatewayData }, rejectStatus);
   }
 
   const paymentUrl = extractPaymentUrl(gatewayData);
   if (!paymentUrl) {
-    const gwMsg = extractGatewayMessage(gatewayData);
-    const gwCode = gatewayData && (gatewayData.responseCode || (gatewayData.data && gatewayData.data.responseCode));
-    const gwDebug = gatewayData && gatewayData.additionalInfo && gatewayData.additionalInfo.debugMessage;
-    return jsonResponse({
-      success: false,
-      orderId: orderId,
-      responseCode: gwCode || null,
-      debugMessage: gwDebug || null,
-      message: "API gateway pembayaran DANA tidak mengembalikan URL pembayaran." + (gwMsg ? " (" + gwMsg : "") + ")",
-      detail: gatewayData
-    }, 502);
+    return jsonResponse({ success: false, message: "API DANA tidak mengembalikan URL pembayaran.", detail: gatewayData }, 502);
   }
 
   return jsonResponse({ success: true, orderId: orderId, paymentUrl: paymentUrl, danaResponse: gatewayData }, 200);
 }
 
-// --- Handler: POST /api/webhook/gapura (Mendukung Aktivasi & Upgrade Otomatis) ---
+// --- Handler: POST /api/webhook/gapura ---
 function generateSlug(name, orderId) {
   const base = String(name || "client").toLowerCase()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "client";
@@ -581,72 +489,26 @@ function generateSlug(name, orderId) {
 }
 
 async function handleGapuraWebhook(request, env) {
-  // =============================================================================
-  // WEBHOOK SECURITY - Read raw body first for signature verification
-  // =============================================================================
   let rawBody;
-  try {
-    rawBody = await request.text();
-  } catch (e) {
-    return jsonResponse({ status: "INVALID", message: "Failed to read request body." }, 400);
-  }
+  try { rawBody = await request.text(); } catch (e) { return jsonResponse({ status: "INVALID", message: "Failed to read request body." }, 400); }
+  if (!rawBody || !rawBody.trim()) return jsonResponse({ status: "INVALID", message: "Empty request body." }, 400);
   
-  if (!rawBody || !rawBody.trim()) {
-    return jsonResponse({ status: "INVALID", message: "Empty request body." }, 400);
-  }
-  
-  // Parse payload AFTER reading raw body
   let payload;
-  try {
-    payload = JSON.parse(rawBody);
-  } catch (e) {
-    return jsonResponse({ status: "INVALID", message: "Payload webhook tidak valid." }, 400);
-  }
+  try { payload = JSON.parse(rawBody); } catch (e) { return jsonResponse({ status: "INVALID", message: "Payload tidak valid." }, 400); }
   
-  // =============================================================================
-  // SIGNATURE VERIFICATION - Validate X-SIGNATURE and X-TIMESTAMP headers
-  // =============================================================================
   const signature = request.headers.get('X-SIGNATURE');
   const timestamp = request.headers.get('X-TIMESTAMP');
   
   if (env.DANA_PUBLIC_KEY) {
-    if (!signature || !timestamp) {
-      console.error("[Webhook] Missing signature headers. IP:", request.headers.get('CF-Connecting-IP'));
-      return jsonResponse({ status: "INVALID", message: "Missing X-SIGNATURE or X-TIMESTAMP header." }, 400);
-    }
-    
+    if (!signature || !timestamp) return jsonResponse({ status: "INVALID", message: "Missing headers." }, 400);
     const publicKeyPem = normalizePublicKeyPem(env.DANA_PUBLIC_KEY);
-    if (!publicKeyPem) {
-      console.error("[Webhook] Invalid DANA_PUBLIC_KEY configuration");
-      return jsonResponse({ status: "ERROR", message: "Server configuration error." }, 500);
-    }
-    
-    const isValid = await verifySnapSignature(
-      "/api/webhook/gapura",
-      rawBody,
-      signature,
-      timestamp,
-      publicKeyPem
-    );
-    
-    if (!isValid) {
-      console.error("[Webhook] Invalid webhook signature. IP:", request.headers.get('CF-Connecting-IP'));
-      return jsonResponse({ status: "INVALID", message: "Invalid webhook signature." }, 401);
-    }
-    
-    console.log("[Webhook] Signature verified successfully for order:", payload.partnerReferenceNo);
-  } else {
-    console.warn("[Webhook] DANA_PUBLIC_KEY not configured, skipping signature verification (DEVELOPMENT MODE)");
+    const isValid = await verifySnapSignature("/api/webhook/gapura", rawBody, signature, timestamp, publicKeyPem);
+    if (!isValid) return jsonResponse({ status: "INVALID", message: "Invalid signature." }, 401);
   }
   
-  // =============================================================================
-  // PAYMENT STATUS VALIDATION - Only process successful payments
-  // =============================================================================
   const responseCode = payload.responseCode || payload.responseHeader?.responseCode;
-  
   if (responseCode !== '2005400') {
-    console.log("[Webhook] Non-success payment ignored. ResponseCode:", responseCode, "Order:", payload.partnerReferenceNo);
-    return jsonResponse({ status: "IGNORED", message: "Payment not successful, ignored.", responseCode }, 200);
+    return jsonResponse({ status: "IGNORED", message: "Payment not successful." }, 200);
   }
 
   const orderId = payload.orderId || payload.originalPartnerReferenceNo || payload.partnerReferenceNo || payload.originalReferenceNo;
@@ -655,150 +517,77 @@ async function handleGapuraWebhook(request, env) {
   const customerPhone = payload.customerPhone || payload.buyerPhone || addInfo.buyerPhone || "";
   const packageName = payload.packageName || addInfo.packageName || "Starter";
 
-  if (!orderId) {
-    return jsonResponse({ status: "INVALID", message: "orderId tidak ditemukan di payload webhook." }, 400);
-  }
+  if (!orderId) return jsonResponse({ status: "INVALID", message: "orderId tidak ditemukan." }, 400);
 
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
-  if (!serviceKey) {
-    return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
-  }
+  if (!serviceKey) return jsonResponse({ status: "ERROR", message: "Konfigurasi Supabase belum lengkap." }, 500);
   
-  // =============================================================================
-  // IDEMPOTENCY CHECK - Query Supabase to prevent duplicate processing
-  // =============================================================================
   try {
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/clients?order_id=eq.${encodeURIComponent(orderId)}&select=id,slug`, {
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": serviceKey,
-        "Authorization": "Bearer " + serviceKey
-      }
+      headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
     });
-    
     if (checkRes.ok) {
       const existingClients = await checkRes.json();
       if (existingClients && existingClients.length > 0) {
-        console.log("[Webhook] Order already processed (idempotency). OrderId:", orderId);
-        return jsonResponse({ 
-          status: "OK", 
-          message: "Order already processed.", 
-          slug: existingClients[0].slug || "existing",
-          idempotent: true 
-        }, 200);
+        return jsonResponse({ status: "OK", message: "Order already processed.", slug: existingClients[0].slug, idempotent: true }, 200);
       }
     }
-  } catch (idempErr) {
-    console.error("[Webhook] Idempotency check failed:", idempErr && idempErr.message);
-  }
+  } catch (idempErr) {}
 
   const isUpgrade = String(orderId).startsWith("UPG-") || Boolean(addInfo.isUpgrade);
 
-  // 1. TRANSAKSI UPGRADE PAKET
   if (isUpgrade) {
     let clientSlug = addInfo.clientSlug;
-    if (!clientSlug && String(orderId).startsWith("UPG-")) {
-      const parts = orderId.split("-");
-      if (parts.length >= 3) {
-        clientSlug = parts[1];
-      }
-    }
+    if (!clientSlug && String(orderId).startsWith("UPG-")) clientSlug = orderId.split("-")[1];
     clientSlug = (clientSlug || "default").trim().toLowerCase();
 
-    let targetMax = Number(addInfo.targetMaxProducts);
-    if (!targetMax) {
-      targetMax = packageName.toLowerCase().includes("ultimate") ? 50 : 30;
-    }
-
+    let targetMax = Number(addInfo.targetMaxProducts) || (packageName.toLowerCase().includes("ultimate") ? 50 : 30);
     const amountVal = Number(payload.amount?.value || addInfo.amount || 0);
 
     try {
       const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/process_package_upgrade`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": serviceKey,
-          "Authorization": "Bearer " + serviceKey
-        },
-        body: JSON.stringify({
-          p_order_id: orderId,
-          p_client_slug: clientSlug,
-          p_target_package: packageName,
-          p_target_max: targetMax,
-          p_amount: amountVal
-        })
+        headers: { "Content-Type": "application/json", "apikey": serviceKey, "Authorization": "Bearer " + serviceKey },
+        body: JSON.stringify({ p_order_id: orderId, p_client_slug: clientSlug, p_target_package: packageName, p_target_max: targetMax, p_amount: amountVal })
       });
 
-      if (!rpcRes.ok) {
-        const errTxt = await rpcRes.text();
-        return jsonResponse({ status: "ERROR", message: "Gagal memproses upgrade di Supabase: " + errTxt }, 502);
-      }
+      if (!rpcRes.ok) return jsonResponse({ status: "ERROR", message: "Gagal memproses upgrade di Supabase" }, 502);
 
-      // Hapus Edge Cache katalog untuk toko ini
       try {
         const cache = caches.default;
-        const cacheUrl = new URL(PRIMARY_DOMAIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug));
-        await cache.delete(new Request(cacheUrl.toString()));
+        await cache.delete(new Request(PRIMARY_DOMAIN + "/api/public/store?slug=" + encodeURIComponent(clientSlug)));
       } catch (cErr) {}
 
-      return jsonResponse({ status: "OK", message: "Upgrade paket berhasil diproses", client_slug: clientSlug, max_products: targetMax }, 200);
+      return jsonResponse({ status: "OK", message: "Upgrade sukses", client_slug: clientSlug, max_products: targetMax }, 200);
     } catch (uErr) {
-      return jsonResponse({ status: "ERROR", message: "Kesalahan server saat memproses upgrade: " + (uErr && uErr.message) }, 500);
+      return jsonResponse({ status: "ERROR", message: "Kesalahan server: " + uErr.message }, 500);
     }
   }
 
-  // 2. PENDAFTARAN KLIEN BARU
   const clientSlug = generateSlug(customerName, orderId);
   const defaultPin = "123456";
-  
-  // Tentukan max_products berdasarkan nama paket yang dibeli
-  let targetMaxProducts = 10; // Default Starter
+  let targetMaxProducts = 10;
   if (packageName.toLowerCase().includes("pro")) targetMaxProducts = 30;
   if (packageName.toLowerCase().includes("ultimate")) targetMaxProducts = 50;
 
   try {
-    // A. Insert ke tabel clients
     const clientRes = await fetch(SUPABASE_URL + "/rest/v1/clients", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": serviceKey,
-        "Authorization": "Bearer " + serviceKey,
-        "Prefer": "return=representation"
-      },
-      body: JSON.stringify({
-        order_id: orderId,
-        name: customerName,
-        phone: customerPhone,
-        package: packageName,
-        slug: clientSlug,
-        status: "active"
-      })
+      headers: { "Content-Type": "application/json", "apikey": serviceKey, "Authorization": "Bearer " + serviceKey },
+      body: JSON.stringify({ order_id: orderId, name: customerName, phone: customerPhone, package: packageName, slug: clientSlug, status: "active" })
     });
 
-    if (!clientRes.ok) {
-      return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien." }, 502);
-    }
+    if (!clientRes.ok) return jsonResponse({ status: "ERROR", message: "Gagal menyimpan data klien." }, 502);
 
-    // B. Insert ke tabel settings dengan max_products yang tepat
     await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
       method: "POST",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        client_slug: clientSlug,
-        admin_pin: defaultPin,
-        profile_name: customerName,
-        max_products: targetMaxProducts
-      })
-    }).catch(e => console.error("[Webhook] Gagal create settings:", e));
+      headers: { "Content-Type": "application/json", "apikey": serviceKey, "Authorization": "Bearer " + serviceKey },
+      body: JSON.stringify({ client_slug: clientSlug, admin_pin: defaultPin, profile_name: customerName, max_products: targetMaxProducts })
+    }).catch(() => {});
 
-    return jsonResponse({ status: "OK", message: "Akun berhasil diaktifkan secara otomatis", slug: clientSlug, max_products: targetMaxProducts }, 200);
+    return jsonResponse({ status: "OK", message: "Aktivasi berhasil", slug: clientSlug, max_products: targetMaxProducts }, 200);
   } catch (err) {
-    return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook: " + (err && err.message) }, 500);
+    return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook." }, 500);
   }
 }
 
@@ -819,7 +608,6 @@ function extractTitleFromUrlSlug(urlStr) {
   if (!urlStr) return "";
   try {
     const u = new URL(urlStr);
-    // Abaikan domain shortlink agar kode acak TIDAK PERNAH dijadikan judul
     if (u.hostname.includes("s.shopee.co.id") || u.hostname.includes("vt.tiktok.com") || u.hostname.includes("tokopedia.link")) {
       return "";
     }
@@ -830,7 +618,6 @@ function extractTitleFromUrlSlug(urlStr) {
         clean = decodeURIComponent(clean).replace(/-/g, " ").replace(/\s+/g, " ").trim();
         if (clean.length > 3) return clean;
       }
-      // Hanya terima segmen yang memiliki tanda hubung (-) dan bukan ID tunggal
       if (seg.includes("-") && seg.length > 8 && !['universal-link', 'product', 'share', 'item'].includes(seg.toLowerCase())) {
         let clean = decodeURIComponent(seg).replace(/-/g, " ").replace(/\s+/g, " ").trim();
         if (!/^[a-zA-Z0-9]+$/.test(seg) && clean.length > 6) {
@@ -842,7 +629,7 @@ function extractTitleFromUrlSlug(urlStr) {
   return "";
 }
 
-// --- Handler: POST /api/scrape-product (Smart Multi-Layer Resolver) ---
+// --- Handler: POST /api/scrape-product (Hybrid Scraper: Shopee API v2 + Googlebot Fallback) ---
 async function handleScrapeProduct(request) {
   let body;
   try {
@@ -861,138 +648,278 @@ async function handleScrapeProduct(request) {
   }
 
   try {
-    const headersList = {
-      "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Cache-Control": "no-cache"
+    const DESKTOP_HEADERS = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none"
     };
 
-    let response = await fetch(targetUrl, {
-      headers: headersList,
-      redirect: "follow"
-    });
+    const GOOGLEBOT_HEADERS = {
+      "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Encoding": "gzip, deflate, br"
+    };
 
-    let finalUrl = response.url || targetUrl;
-    let html = await response.text();
+    // TAHAP 1: ROBUST REDIRECT CHASER
+    let currentUrl = targetUrl;
+    let redirectChain = new Set();
 
-    // Jika shortlink mengarah ke universal-link, cari link produk asli di dalamnya
-    const redirMatch = html.match(/(?:redir|target|destination)=([a-zA-Z0-9%_\-\.\/\:\?\=\&]+)/i);
-    if (redirMatch && redirMatch[1]) {
+    for (let i = 0; i < 8; i++) {
+      if (redirectChain.has(currentUrl)) break;
+      redirectChain.add(currentUrl);
+
       try {
-        const decodedRedir = decodeURIComponent(redirMatch[1]);
-        if (/^https?:\/\//i.test(decodedRedir) && !decodedRedir.includes("s.shopee.co.id")) {
-          finalUrl = decodedRedir;
-          const secondResp = await fetch(decodedRedir, { headers: headersList, redirect: "follow" });
-          if (secondResp.ok) {
-            html = await secondResp.text();
+        const resp = await fetch(currentUrl, { headers: DESKTOP_HEADERS, redirect: "manual" });
+
+        if (resp.status >= 300 && resp.status < 400) {
+          const loc = resp.headers.get("location");
+          if (!loc) break;
+
+          if (loc.startsWith("/")) {
+            currentUrl = new URL(loc, currentUrl).href;
+          } else if (loc.startsWith("http")) {
+            currentUrl = loc;
+          } else {
+            break;
+          }
+
+          // SHOPEE: Decode nested URLs
+          if (currentUrl.includes("shopee")) {
+            const urlObj = new URL(currentUrl);
+            const nestedUrl = urlObj.searchParams.get("url")
+              || urlObj.searchParams.get("custom_url")
+              || urlObj.searchParams.get("deeplink")
+              || urlObj.searchParams.get("l");
+
+            if (nestedUrl) {
+              try {
+                let decoded = decodeURIComponent(nestedUrl);
+                if (decoded.includes("%")) decoded = decodeURIComponent(decoded);
+                if (decoded.startsWith("http")) currentUrl = decoded;
+              } catch (e) {}
+            }
+          }
+        } else {
+          break;
+        }
+      } catch (e) {
+        break;
+      }
+    }
+
+    const finalUrl = currentUrl;
+    const isShopee = finalUrl.includes("shopee") || finalUrl.includes("shope.ee");
+
+    let title = "";
+    let imageUrl = "";
+    let price = "";
+
+    // TAHAP 2: SHOPEE API v2 (Direct JSON - No HTML Parsing)
+    if (isShopee) {
+      let shopId = null;
+      let itemId = null;
+
+      const matchI = finalUrl.match(/-i\.(\d+)\.(\d+)/);
+      const matchP = finalUrl.match(/\/product\/(\d+)\/(\d+)/);
+
+      try {
+        const urlObj = new URL(finalUrl);
+        if (!shopId) shopId = urlObj.searchParams.get("shopid") || urlObj.searchParams.get("shop_id");
+        if (!itemId) itemId = urlObj.searchParams.get("itemid") || urlObj.searchParams.get("item_id");
+      } catch (e) {}
+
+      if (matchI) {
+        shopId = matchI[1];
+        itemId = matchI[2];
+      } else if (matchP) {
+        shopId = matchP[1];
+        itemId = matchP[2];
+      }
+
+      if (shopId && itemId) {
+        try {
+          // Try v4 Desktop API first
+          const apiUrl = `https://shopee.co.id/api/v4/item/get_item_detail_desktop?itemid=${itemId}&shopid=${shopId}`;
+          const apiResp = await fetch(apiUrl, {
+            headers: {
+              "User-Agent": DESKTOP_HEADERS["User-Agent"],
+              "Accept": "application/json",
+              "Referer": "https://shopee.co.id/",
+              "X-Requested-With": "XMLHttpRequest"
+            }
+          });
+
+          if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (apiData && apiData.data) {
+              const d = apiData.data;
+              if (d.name) title = d.name.trim();
+              if (d.image) imageUrl = `https://cf.shopee.co.id/file/${d.image}`;
+              if (d.price) {
+                const rawPrice = Number(d.price);
+                if (rawPrice > 0) price = String(Math.floor(rawPrice / 100000));
+              } else if (d.price_min && d.price_max) {
+                const minPrice = Math.floor(d.price_min / 100000);
+                const maxPrice = Math.floor(d.price_max / 100000);
+                price = (minPrice === maxPrice) ? String(minPrice) : `${minPrice}-${maxPrice}`;
+              }
+            }
+          }
+
+          // Fallback: v2 API
+          if (!title && !imageUrl) {
+            const apiUrl2 = `https://shopee.co.id/api/v2/item/get?itemid=${itemId}&shopid=${shopId}`;
+            const apiResp2 = await fetch(apiUrl2, {
+              headers: {
+                "User-Agent": DESKTOP_HEADERS["User-Agent"],
+                "Accept": "application/json",
+                "Referer": "https://shopee.co.id/"
+              }
+            });
+
+            if (apiResp2.ok) {
+              const apiData2 = await apiResp2.json();
+              if (apiData2 && apiData2.item) {
+                const item = apiData2.item;
+                if (item.name) title = item.name.trim();
+                if (item.images && item.images[0]) {
+                  imageUrl = `https://cf.shopee.co.id/file/${item.images[0]}`;
+                }
+                if (item.price) price = String(Math.floor(item.price / 100000));
+              }
+            }
+          }
+        } catch (e) {
+          console.log("Shopee API error:", e.message);
+        }
+      }
+    }
+
+    // TAHAP 3: GOOGLEBOT FALLBACK (TikTok, Tokopedia, Others)
+    if (!title || !imageUrl) {
+      try {
+        const htmlResp = await fetch(finalUrl, {
+          headers: GOOGLEBOT_HEADERS,
+          redirect: "follow"
+        });
+        const html = await htmlResp.text();
+
+        // OG Title
+        if (!title) {
+          const ogTitlePatterns = [
+            /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+            /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
+            /<title[^>]*>([^<]+)<\/title>/i
+          ];
+          for (const pattern of ogTitlePatterns) {
+            const match = html.match(pattern);
+            if (match && match[1] && match[1].length > 5) {
+              title = match[1].trim();
+              break;
+            }
           }
         }
-      } catch (e) {}
-    }
 
-    // 1. Ekstrak Judul Produk dari Meta Tags
-    let title = "";
-    const ogTitleMatch = html.match(/<meta[^>]+property=["'](?:og:title|twitter:title)["'][^>]+content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:title|twitter:title)["']/i) ||
-                         html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (ogTitleMatch) {
-      title = ogTitleMatch[1];
-    }
+        // OG Image
+        if (!imageUrl) {
+          const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+            || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+          if (match) imageUrl = match[1].trim();
+        }
 
-    // 2. Ekstrak Foto Produk
-    let imageUrl = "";
-    const ogImageMatch = html.match(/<meta[^>]+property=["'](?:og:image|twitter:image|og:image:secure_url)["'][^>]+content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:image|twitter:image|og:image:secure_url)["']/i);
-    if (ogImageMatch) {
-      imageUrl = ogImageMatch[1].trim();
-    }
-
-    // 3. Ekstrak Harga Produk
-    let price = "";
-    const ogPriceMatch = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:price:amount|product:price:amount)["']/i);
-    if (ogPriceMatch) {
-      price = ogPriceMatch[1].replace(/[^\d]/g, "");
-    }
-
-    // 4. Cadangan: JSON-LD Structured Data
-    if (!title || !imageUrl || !price) {
-      const jsonLdMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
-      if (jsonLdMatch) {
-        try {
-          const ld = JSON.parse(jsonLdMatch[1]);
-          if (!title && ld.name) title = ld.name;
-          if (!imageUrl && ld.image) {
-            imageUrl = Array.isArray(ld.image) ? ld.image[0] : (typeof ld.image === 'object' ? ld.image.url : ld.image);
+        // JSON-LD
+        if (!title || !imageUrl || !price) {
+          const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+          for (const match of jsonLdMatches) {
+            try {
+              const ld = JSON.parse(match[1]);
+              const ldArray = Array.isArray(ld) ? ld : [ld];
+              for (const item of ldArray) {
+                if (item["@type"] === "Product") {
+                  if (!title && item.name) title = item.name;
+                  if (!imageUrl && item.image) {
+                    imageUrl = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'object' ? item.image.url : item.image);
+                  }
+                  if (!price && item.offers) {
+                    const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+                    if (offer && offer.price) price = String(Math.floor(Number(offer.price)));
+                  }
+                  if (title && imageUrl) break;
+                }
+              }
+              if (title && imageUrl) break;
+            } catch (e) {}
           }
-          if (!price && ld.offers) {
-            const offer = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-            if (offer && offer.price) price = String(offer.price).replace(/[^\d]/g, "");
-          }
-        } catch (e) {}
+        }
+
+        // Meta Price
+        if (!price) {
+          const metaPrice = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
+          if (metaPrice) price = String(Math.floor(Number(metaPrice[1].replace(/[^\d.]/g, ""))));
+        }
+      } catch (e) {
+        console.log("Googlebot fetch error:", e.message);
       }
     }
 
-    // 5. Cadangan: URL Slug Resolver
-    if (!title) {
-      title = extractTitleFromUrlSlug(finalUrl);
-    }
-
-    // 6. Cadangan: Deteksi Gambar CDN Shopee/TikTok
-    if (!imageUrl) {
-      const cdnMatch = html.match(/https:\/\/(?:down-id\.img\.susercontent\.com|cf\.shopee\.co\.id\/file|p16-va\.tiktokcdn\.com)\/[a-zA-Z0-9_\-\.\/]+/i);
-      if (cdnMatch) {
-        imageUrl = cdnMatch[0].replace(/["'>].*$/, "");
-      }
-    }
-
-    // 7. Cadangan: Regex Deteksi Format Rupiah
-    if (!price) {
-      const rpMatch = html.match(/Rp\s*([\d\.,]+)/i);
-      if (rpMatch) {
-        price = rpMatch[1].replace(/[^\d]/g, "");
-      }
-    }
-
-    // Pembersihan Judul
+    // TAHAP 4: ANTI-GARBAGE FILTER
     if (title) {
       title = decodeHtmlEntities(title)
-        .replace(/\s*\|\s*(Shopee|Tokopedia|TikTok Shop|TikTok|Lazada).*/gi, "")
-        .replace(/Jual\s+/i, "")
+        .replace(/\s*[|\-]\s*(Shopee Indonesia|Tokopedia|TikTok Shop|Lazada).*$/gi, "")
+        .replace(/^(Jual\s+|Beli\s+)/i, "")
+        .replace(/\s{2,}/g, " ")
         .trim();
+
+      const tLower = title.toLowerCase();
+      const garbagePatterns = [
+        "situs belanja online", "shopee indonesia", "tokopedia", "tiktok shop",
+        "attention required", "cloudflare", "access denied",
+        "tanstack", "react", "__react", "webpack", "vite",
+        "hotjar", "segment", "sentry", "qjypxemyj", "undefined", "null"
+      ];
+
+      const isGarbage = garbagePatterns.some(p => tLower.includes(p))
+        || /^\s*[a-z0-9]{7,15}\s*$/i.test(title)
+        || title.length < 3 || title.length > 300;
+
+      if (isGarbage) title = "";
     }
 
-    // Validasi Anti-Hash: Batalkan judul jika hanya berupa kode unik acak
-    if (title && (title === "qjypxEMyj" || /^[a-zA-Z0-9]{7,15}$/.test(title))) {
-      title = "";
+    if (!title) title = extractTitleFromUrlSlug(finalUrl);
+
+    if (imageUrl) {
+      const imgLower = imageUrl.toLowerCase();
+      if (["logo", "icon", "avatar", "captcha", "badge", "placeholder"].some(p => imgLower.includes(p))) {
+        imageUrl = "";
+      }
     }
 
+    // FINAL RESPONSE
     if (title || imageUrl) {
       return jsonResponse({
         success: true,
-        data: {
-          title: title ? title.slice(0, 150) : "",
-          imageUrl: imageUrl || "",
-          price: price || ""
-        }
+        data: { title: title ? title.slice(0, 150) : "", imageUrl: imageUrl || "", price: price || "" }
       }, 200);
     }
 
     return jsonResponse({
       success: false,
-      message: "Marketplace memproteksi link pendek ini dari bot. Silakan ketik nama dan upload foto secara manual."
+      message: "Gagal memproses detail produk. Tautan sangat diproteksi, silakan isi data manual."
     }, 422);
 
   } catch (err) {
-    return jsonResponse({
-      success: false,
-      message: "Gagal memproses link produk: " + (err && err.message)
-    }, 500);
+    return jsonResponse({ success: false, message: "Terjadi kesalahan internal server saat memproses URL." }, 500);
   }
 }
 
-// --- Handler: POST /api/track (Analytics Ingestion via Cloudflare D1 Serverless SQL) ---
+// --- Handler: POST /api/track ---
 async function handleTrack(request, env, ctx) {
   const ua = request.headers.get('user-agent') || '';
   if (/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|preview/i.test(ua)) return new Response(null, { status: 204 });
@@ -1022,7 +949,6 @@ async function handleTrack(request, env, ctx) {
     const country = request.cf?.country || request.headers.get('cf-ipcountry') || 'ID';
     const city = request.cf?.city || request.headers.get('cf-ipcity') || 'Indonesia';
     
-    // D1 SQL Queries dengan UPSERT pattern
     const dateStr = new Date().toISOString().split('T')[0];
     const queries = [];
     
@@ -1047,7 +973,7 @@ async function handleTrack(request, env, ctx) {
   }
 }
 
-// --- Handler: GET /api/admin/analytics (Edge Cached 60 Detik + Cloudflare D1 Query) ---
+// --- Handler: GET /api/admin/analytics ---
 async function handleAdminAnalytics(request, env, ctx) {
   const cacheUrl = new URL(request.url);
   const cacheKey = new Request(cacheUrl.toString(), request);
@@ -1058,7 +984,6 @@ async function handleAdminAnalytics(request, env, ctx) {
   const clientSlug = (cacheUrl.searchParams.get('clientSlug') || cacheUrl.searchParams.get('slug') || 'default').trim();
   
   try {
-    // Tarik data dari D1
     const { results: trendsData } = await env.DB.prepare(`SELECT date_str, views, product_clicks as clicks, social_clicks FROM analytics_daily WHERE client_slug = ? ORDER BY date_str DESC LIMIT 7`).bind(clientSlug).all();
     let totalViews = 0, totalClicks = 0, totalSocials = 0;
     trendsData.forEach(r => { totalViews += r.views; totalClicks += r.clicks; totalSocials += r.social_clicks; });
@@ -1092,8 +1017,7 @@ async function handleAdminAnalytics(request, env, ctx) {
   }
 }
 
-
-// --- Handler: GET /api/public/store (Edge Cached 300 Detik / 5 Menit - Termasuk Pixel ID & Max Products & Edge Telemetry) ---
+// --- Handler: GET /api/public/store ---
 async function handlePublicStore(request, env, ctx) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("slug") || "default").trim();
@@ -1134,7 +1058,7 @@ async function handlePublicStore(request, env, ctx) {
         coloName: resolveColoName(coloCode),
         protocol: cf.httpProtocol || "HTTP/3",
         region: cf.region || cf.regionCode || "ID",
-        cacheTimestamp: Date.now() // For client-side image cache busting
+        cacheTimestamp: Date.now()
       }
     };
     const cacheHeader = isNoCache 
@@ -1171,12 +1095,11 @@ async function handleCheckVoucher(request, env) {
     if (endorseList && endorseList.length > 0) {
       const v = endorseList[0];
       if (v.is_used) {
-        return jsonResponse({ valid: false, message: "â Œ Voucher endorse ini sudah pernah digunakan!" });
+        return jsonResponse({ valid: false, message: "❌ Voucher endorse ini sudah pernah digunakan!" });
       }
       return jsonResponse({ valid: true, type: "endorse", discount_percent: 100, code: v.endorse_code });
     }
 
-    // Check if code is a Broker Code (before influencer check)
     const brokerRes = await fetch(`${SUPABASE_URL}/rest/v1/brokers?broker_code=ilike.${encodeURIComponent(code)}&select=*`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
@@ -1193,7 +1116,7 @@ async function handleCheckVoucher(request, env) {
       return jsonResponse({ valid: true, type: "influencer", discount_percent: infList[0].discount_percent || 30 });
     }
 
-    return jsonResponse({ valid: false, message: "â Œ Kode voucher tidak ditemukan. Diskon 0%." });
+    return jsonResponse({ valid: false, message: "❌ Kode voucher tidak ditemukan. Diskon 0%." });
   } catch (err) {
     return jsonResponse({ valid: false, message: "Gagal memverifikasi voucher di server." }, 500);
   }
@@ -1223,16 +1146,14 @@ async function handleRegisterInfluencer(request, env) {
   try {
     let isBrokerRoute = false;
     let brokerSlug = null;
-    let commRate = 30; // Default komisi untuk rekrutan Admin langsung
+    let commRate = 30;
 
-    // Cek apakah kode adalah Voucher Endorse Master
     const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}&is_used=eq.false&select=id`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
     });
     const checkList = await checkRes.json();
     
     if (!checkList || checkList.length === 0) {
-      // Jika bukan endorse biasa, cek apakah ini Kode Broker
       const bRes = await fetch(`${SUPABASE_URL}/rest/v1/brokers?broker_code=ilike.${encodeURIComponent(endorseCode)}&select=slug`, {
         headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
       });
@@ -1241,87 +1162,42 @@ async function handleRegisterInfluencer(request, env) {
       if (bList && bList.length > 0) {
         isBrokerRoute = true;
         brokerSlug = bList[0].slug;
-        commRate = 20; // Komisi untuk Sub-Affiliate
+        commRate = 20;
       } else {
         return jsonResponse({ success: false, message: "Kode voucher/broker tidak sah atau sudah terpakai." }, 400);
       }
     }
 
-    // --- AUTO-CREATE CLIENT & SETTINGS FOR INFLUENCER ---
     const defaultPin = "123456";
-    // Dynamic package assignment based on selected tier
-    let targetMaxProducts = 30; // Default Pro
+    let targetMaxProducts = 30;
     if (packageName.toLowerCase().includes("ultimate")) targetMaxProducts = 50;
     if (packageName.toLowerCase().includes("starter")) targetMaxProducts = 10;
 
-    // 1. Insert ke tabel clients
     await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
       method: "POST",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        order_id: "INF-" + slug + "-" + Date.now(),
-        name: bankHolder || slug,
-        phone: whatsapp,
-        package: packageName,
-        slug: slug,
-        status: "active"
-      })
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: "INF-" + slug + "-" + Date.now(), name: bankHolder || slug, phone: whatsapp, package: packageName, slug: slug, status: "active" })
     }).catch(e => console.error("Gagal create client:", e));
 
-    // 2. Insert ke tabel settings (dengan PIN default)
     await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
       method: "POST",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        client_slug: slug,
-        admin_pin: defaultPin,
-        profile_name: bankHolder || slug,
-        max_products: targetMaxProducts
-      })
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ client_slug: slug, admin_pin: defaultPin, profile_name: bankHolder || slug, max_products: targetMaxProducts })
     }).catch(e => console.error("Gagal create settings:", e));
-    // -----------------------------------------------------
 
     const insRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers`, {
       method: "POST",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-      },
-      body: JSON.stringify({
-        client_slug: slug,
-        voucher_code: voucher,
-        discount_percent: 30,
-        commission_rate: commRate,
-        referred_by: brokerSlug,
-        whatsapp: whatsapp,
-        bank_name: bankName,
-        bank_account: bankAccount,
-        bank_holder: bankHolder
-      })
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json", "Prefer": "return=representation" },
+      body: JSON.stringify({ client_slug: slug, voucher_code: voucher, discount_percent: 30, commission_rate: commRate, referred_by: brokerSlug, whatsapp: whatsapp, bank_name: bankName, bank_account: bankAccount, bank_holder: bankHolder })
     });
     if (!insRes.ok) {
       return jsonResponse({ success: false, message: "Gagal menyimpan: Client Slug mungkin sudah terpakai." }, 400);
     }
 
-    // Only mark endorse voucher as used if it's not a broker route
     if (!isBrokerRoute) {
       await fetch(`${SUPABASE_URL}/rest/v1/endorse_vouchers?endorse_code=ilike.${encodeURIComponent(endorseCode)}`, {
         method: "PATCH",
-        headers: {
-          "apikey": serviceKey,
-          "Authorization": `Bearer ${serviceKey}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ is_used: true })
       });
     }
@@ -1332,7 +1208,7 @@ async function handleRegisterInfluencer(request, env) {
   }
 }
 
-// --- Handler: Dynamic Open Graph & Meta SEO Injection (Edge Cached 300 Detik) ---
+// --- Handler: Dynamic Open Graph & Meta SEO Injection ---
 async function handlePageRender(request, env, ctx) {
   const url = new URL(request.url);
   const segments = url.pathname.split("/").filter(Boolean);
@@ -1414,28 +1290,16 @@ async function handlePageRender(request, env, ctx) {
   return finalResponse;
 }
 
-
 // --- Handler: POST /api/admin/run-gc (Orphan Garbage Collector) ---
 async function handleGarbageCollector(env) {
-  if (!env.ASSETS_BUCKET) {
-    console.log('[GC] ASSETS_BUCKET tidak terkonfigurasi');
-    return { success: false, message: 'ASSETS_BUCKET tidak terkonfigurasi' };
-  }
-
+  if (!env.ASSETS_BUCKET) return { success: false, message: 'ASSETS_BUCKET tidak terkonfigurasi' };
   const sbKey = env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_SERVICE_KEY;
-  if (!sbKey) {
-    console.log('[GC] Supabase key belum ada');
-    return { success: false, message: 'Supabase key belum ada' };
-  }
+  if (!sbKey) return { success: false, message: 'Supabase key belum ada' };
 
   try {
     const [prodRes, setRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/products?select=image_url', {
-        headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/settings?select=profile_image_url,background_url', {
-        headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey }
-      })
+      fetch(SUPABASE_URL + '/rest/v1/products?select=image_url', { headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey } }),
+      fetch(SUPABASE_URL + '/rest/v1/settings?select=profile_image_url,background_url', { headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey } })
     ]);
 
     const products = await prodRes.json();
@@ -1449,10 +1313,7 @@ async function handleGarbageCollector(env) {
     };
 
     if (Array.isArray(products)) products.forEach((p) => collectKey(p.image_url));
-    if (Array.isArray(settings)) settings.forEach((s) => {
-      collectKey(s.profile_image_url);
-      collectKey(s.background_url);
-    });
+    if (Array.isArray(settings)) settings.forEach((s) => { collectKey(s.profile_image_url); collectKey(s.background_url); });
 
     let truncated = true;
     let cursor = undefined;
@@ -1464,22 +1325,15 @@ async function handleGarbageCollector(env) {
       const list = await env.ASSETS_BUCKET.list({ prefix: 'assets/', cursor });
       for (const obj of list.objects) {
         const uploadTime = obj.uploaded ? obj.uploaded.getTime() : 0;
-        if (activeKeys.has(obj.key) || uploadTime > fortyEightHoursAgo) {
-          keptCount++;
-          continue;
-        }
+        if (activeKeys.has(obj.key) || uploadTime > fortyEightHoursAgo) { keptCount++; continue; }
         await env.ASSETS_BUCKET.delete(obj.key);
         deletedCount++;
-        console.log('[GC] Deleted orphan: ' + obj.key);
       }
       truncated = list.truncated;
       cursor = list.cursor;
     }
-
-    console.log('[GC] Sukses: ' + deletedCount + ' file sampah dihapus, ' + keptCount + ' file aktif dipertahankan.');
     return { success: true, deleted: deletedCount, kept: keptCount };
   } catch (err) {
-    console.error('[GC Error]:', err);
     return { success: false, error: err.message };
   }
 }
@@ -1489,74 +1343,28 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
-    }
-
-    if (url.pathname === "/api/scrape-product" && request.method === "POST") {
-      return handleScrapeProduct(request);
-    }
-
-    if (url.pathname === "/api/public/store" && request.method === "GET") {
-      return handlePublicStore(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/create-payment" && request.method === "POST") {
-      return handleCreatePayment(request, env);
-    }
-
-    if (url.pathname === "/api/webhook/gapura" && request.method === "POST") {
-      return handleGapuraWebhook(request, env);
-    }
-
-    if (url.pathname === "/api/track" && request.method === "POST") {
-      return handleTrack(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/admin/analytics" && request.method === "GET") {
-      return handleAdminAnalytics(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/check-voucher" && request.method === "POST") {
-      return handleCheckVoucher(request, env);
-    }
-
-    if (url.pathname === "/api/register-influencer" && request.method === "POST") {
-      return handleRegisterInfluencer(request, env);
-    }
-
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+    if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
+    if (url.pathname === "/api/public/store" && request.method === "GET") return handlePublicStore(request, env, ctx);
+    if (url.pathname === "/api/create-payment" && request.method === "POST") return handleCreatePayment(request, env);
+    if (url.pathname === "/api/webhook/gapura" && request.method === "POST") return handleGapuraWebhook(request, env);
+    if (url.pathname === "/api/track" && request.method === "POST") return handleTrack(request, env, ctx);
+    if (url.pathname === "/api/admin/analytics" && request.method === "GET") return handleAdminAnalytics(request, env, ctx);
+    if (url.pathname === "/api/check-voucher" && request.method === "POST") return handleCheckVoucher(request, env);
+    if (url.pathname === "/api/register-influencer" && request.method === "POST") return handleRegisterInfluencer(request, env);
+    if (url.pathname === "/api/admin/run-gc" && request.method === "POST") return jsonResponse(await handleGarbageCollector(env));
     
-    
-
-    // GC Routes - Manual trigger for testing
-    if (url.pathname === "/api/admin/run-gc" && request.method === "POST") {
-      const gcResult = await handleGarbageCollector(env);
-      return jsonResponse(gcResult);
-    }
-
     // R2 Storage Routes
-    if (url.pathname.startsWith("/cdn/") && request.method === "GET") {
-      return handleCDN(request, env);
-    }
-    if (url.pathname === "/api/upload-image" && request.method === "POST") {
-      return handleUploadImage(request, env);
-    }
-    if (url.pathname === "/api/delete-image" && request.method === "POST") {
-      return handleDeleteImage(request, env);
-    }
-    if (url.pathname === "/api/clear-cache" && request.method === "POST") {
-      return handleClearCache(request, env);
-    }
-    if (request.method === "GET") {
-      return handlePageRender(request, env, ctx);
-    }
+    if (url.pathname.startsWith("/cdn/") && request.method === "GET") return handleCDN(request, env);
+    if (url.pathname === "/api/upload-image" && request.method === "POST") return handleUploadImage(request, env);
+    if (url.pathname === "/api/delete-image" && request.method === "POST") return handleDeleteImage(request, env);
+    if (url.pathname === "/api/clear-cache" && request.method === "POST") return handleClearCache(request, env);
+    if (request.method === "GET") return handlePageRender(request, env, ctx);
 
     return jsonResponse({ success: false, message: "Not found." }, 404);
   },
 
-  // --- Scheduled: Orphan Garbage Collector (setiap 5 hari jam 20:00) ---
   async scheduled(event, env, ctx) {
-    console.log("[Cron] Starting scheduled garbage collection...");
     ctx.waitUntil(handleGarbageCollector(env));
   }
 };
