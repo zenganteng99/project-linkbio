@@ -1,1 +1,0 @@
-﻿// customlink-webhook - DANA Payment Gateway (SNAP) + auto-activation klien + Dynamic SEO Engine + 
