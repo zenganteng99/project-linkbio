@@ -960,18 +960,6 @@
         if (txt) txt.textContent = "Ambil Info Otomatis";
     }
 }
-// ============================================================
-// CLIENT-SIDE SCRAPING: Direct browser fetch (real IP)
-// ============================================================
-async function scrapeClientSide(targetUrl, index) {
-    const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
-    // Shopee: Direct fetch
-
-    // Mobile browser headers (most likely to work)
-    const mobileHeaders = new Headers();
-    mobileHeaders.append("User-Agent", navigator.userAgent);
-    mobileHeaders.append("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-    mobileHeaders.append("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7");
 
 // ============================================================
 // CLIENT-SIDE SCRAPING: Direct browser fetch (real IP)

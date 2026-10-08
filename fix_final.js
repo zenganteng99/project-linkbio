@@ -1,106 +1,50 @@
 const fs = require('fs');
+let content = fs.readFileSync('admin.html', 'utf8');
+const lines = content.split(/\r?\n/);
 
-console.log('=== Final Fix for R2 Upload ===\n');
+console.log('Total lines:', lines.length);
 
-let worker = fs.readFileSync('worker/worker.js', 'utf8');
-
-// Find the handleUploadImage function and replace with a simpler version
-const oldPattern = /async function handleUploadImage\(request, env\) \{[\s\S]*?async function handleDeleteImage/m;
-
-const newFunction = `async function handleUploadImage(request, env) {
-  if (!env.ASSETS_BUCKET) {
-    return jsonResponse({ error: "R2 bucket not configured" }, 500);
-  }
-  
-  try {
-    // Parse FormData from request
-    const formData = await request.formData();
-    const file = formData.get("file");
-    const oldUrl = formData.get("oldUrl");
-    
-    if (!file || !(file instanceof File)) {
-      return jsonResponse({ error: "File is required" }, 400);
+// Find all function declarations
+let funcLines = [];
+for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('async function scrapeClientSide') || lines[i].includes('function scrapeClientSide')) {
+        funcLines.push({ line: i + 1, content: lines[i].trim() });
     }
-    
-    // Delete old file if oldUrl is provided
-    if (oldUrl && typeof oldUrl === 'string') {
-      const oldPath = extractPathFromUrl(oldUrl);
-      if (oldPath) {
-        try {
-          await env.ASSETS_BUCKET.delete(oldPath);
-        } catch (delErr) {
-          console.error('Failed to delete old file:', delErr);
+}
+
+console.log('Found functions at lines:', funcLines.map(f => f.line));
+
+if (funcLines.length > 1) {
+    // Remove all duplicates, keep only the first one
+    let removed = 0;
+    for (let i = 1; i < funcLines.length; i++) {
+        const startLine = funcLines[i].line - 1 - removed;
+        console.log('Removing function at line', funcLines[i].line, '(index', startLine, ')');
+        
+        // Find the end of this function (look for the closing });
+        let braceCount = 0;
+        let foundOpen = false;
+        let endLine = startLine;
+        
+        for (let j = startLine; j < lines.length; j++) {
+            for (const char of lines[j]) {
+                if (char === '{') { braceCount++; foundOpen = true; }
+                if (char === '}') { braceCount--; }
+            }
+            if (foundOpen && braceCount === 0) {
+                endLine = j;
+                break;
+            }
         }
-      }
+        
+        console.log('  Removing from line', startLine + 1, 'to', endLine + 1);
+        lines.splice(startLine, endLine - startLine + 1);
+        removed += endLine - startLine + 1;
     }
     
-    // Generate unique filename
-    const ext = file.name ? file.name.split(".").pop() : 'jpg';
-    const filename = 'assets/' + Date.now() + '_' + Math.random().toString(36).substring(7) + '.' + ext;
-    
-    // Get file content and upload to R2
-    const arrayBuffer = await file.arrayBuffer();
-    const fileContent = new Uint8Array(arrayBuffer);
-    
-    await env.ASSETS_BUCKET.put(filename, fileContent, {
-      httpMetadata: {
-        contentType: file.type || "image/jpeg"
-      }
-    });
-    
-    // Return public URL
-    const primaryDomain = env.PRIMARY_DOMAIN || "https://customlink.pages.dev";
-    const publicUrl = primaryDomain + '/cdn/' + filename;
-    
-    return jsonResponse({ 
-      success: true, 
-      url: publicUrl,
-      filename: filename
-    });
-    
-  } catch (err) {
-    console.error('Upload error:', err);
-    return jsonResponse({ error: "Upload failed: " + err.message }, 500);
-  }
-}
-
-async function handleDeleteImage`;
-
-if (worker.match(oldPattern)) {
-  worker = worker.replace(oldPattern, newFunction);
-  fs.writeFileSync('worker/worker.js', worker);
-  console.log('SUCCESS: handleUploadImage function simplified and fixed');
+    content = lines.join('\n');
+    fs.writeFileSync('admin.html', content);
+    console.log('Done! Removed', funcLines.length - 1, 'duplicate(s)');
 } else {
-  console.log('Pattern not found, trying alternative...');
-  
-  // Find the function and manually replace
-  const lines = worker.split('\n');
-  let startIdx = -1;
-  let endIdx = -1;
-  
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('async function handleUploadImage(request, env)')) {
-      startIdx = i;
-    }
-    if (startIdx !== -1 && lines[i].includes('async function handleDeleteImage')) {
-      endIdx = i;
-      break;
-    }
-  }
-  
-  if (startIdx !== -1 && endIdx !== -1) {
-    const newLines = [
-      ...lines.slice(0, startIdx),
-      newFunction,
-      ...lines.slice(endIdx + 1)
-    ];
-    worker = newLines.join('\n');
-    fs.writeFileSync('worker/worker.js', worker);
-    console.log('SUCCESS: handleUploadImage function replaced');
-  } else {
-    console.log('ERROR: Could not find function boundaries');
-    process.exit(1);
-  }
+    console.log('No duplicates found');
 }
-
-console.log('\nDone! Deploy with: cd worker && wrangler deploy --keep-vars');
