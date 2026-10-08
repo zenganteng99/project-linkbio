@@ -629,7 +629,7 @@ function extractTitleFromUrlSlug(urlStr) {
   return "";
 }
 
-// --- Handler: POST /api/scrape-product (Hybrid Scraper: Shopee API v2 + Googlebot Fallback) ---
+// --- Handler: POST /api/scrape-product (Ghost Protocol: Mobile Spoofing + JSON Payload Extraction) ---
 async function handleScrapeProduct(request) {
   let body;
   try {
@@ -648,49 +648,53 @@ async function handleScrapeProduct(request) {
   }
 
   try {
+    // ============================================================
+    // GHOST PROTOCOL: Mobile Spoofing Headers
+    // ============================================================
+    const MOBILE_HEADERS = {
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1"
+    };
+
     const DESKTOP_HEADERS = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.5",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Connection": "keep-alive",
-      "Upgrade-Insecure-Requests": "1",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none"
-    };
-
-    const GOOGLEBOT_HEADERS = {
-      "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
       "Accept-Encoding": "gzip, deflate, br"
     };
 
-    // TAHAP 1: ROBUST REDIRECT CHASER
+    // ============================================================
+    // TAHAP 1: MOBILE REDIRECT CHASER (Ghost Mode)
+    // ============================================================
     let currentUrl = targetUrl;
     let redirectChain = new Set();
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {
       if (redirectChain.has(currentUrl)) break;
       redirectChain.add(currentUrl);
 
       try {
-        const resp = await fetch(currentUrl, { headers: DESKTOP_HEADERS, redirect: "manual" });
+        const resp = await fetch(currentUrl, { headers: MOBILE_HEADERS, redirect: "manual" });
 
         if (resp.status >= 300 && resp.status < 400) {
           const loc = resp.headers.get("location");
           if (!loc) break;
 
-          if (loc.startsWith("/")) {
+          // Handle meta-refresh redirect
+          if (!loc.startsWith("http") && !loc.startsWith("/")) {
+            // Could be meta refresh, try following anyway
             currentUrl = new URL(loc, currentUrl).href;
-          } else if (loc.startsWith("http")) {
-            currentUrl = loc;
+          } else if (loc.startsWith("/")) {
+            currentUrl = new URL(loc, currentUrl).href;
           } else {
-            break;
+            currentUrl = loc;
           }
 
-          // SHOPEE: Decode nested URLs
+          // Decode nested URLs for Shopee
           if (currentUrl.includes("shopee")) {
             const urlObj = new URL(currentUrl);
             const nestedUrl = urlObj.searchParams.get("url")
@@ -721,140 +725,217 @@ async function handleScrapeProduct(request) {
     let imageUrl = "";
     let price = "";
 
-    // TAHAP 2: SHOPEE API v2 (Direct JSON - No HTML Parsing)
+    // ============================================================
+    // TAHAP 2: MOBILE WEB HTML FETCH + JSON PAYLOAD EXTRACTION
+    // ============================================================
     if (isShopee) {
-      let shopId = null;
-      let itemId = null;
-
-      const matchI = finalUrl.match(/-i\.(\d+)\.(\d+)/);
-      const matchP = finalUrl.match(/\/product\/(\d+)\/(\d+)/);
-
       try {
-        const urlObj = new URL(finalUrl);
-        if (!shopId) shopId = urlObj.searchParams.get("shopid") || urlObj.searchParams.get("shop_id");
-        if (!itemId) itemId = urlObj.searchParams.get("itemid") || urlObj.searchParams.get("item_id");
-      } catch (e) {}
+        // Fetch Mobile Web HTML
+        const htmlResp = await fetch(finalUrl, {
+          headers: MOBILE_HEADERS,
+          redirect: "follow"
+        });
+        const html = await htmlResp.text();
 
-      if (matchI) {
-        shopId = matchI[1];
-        itemId = matchI[2];
-      } else if (matchP) {
-        shopId = matchP[1];
-        itemId = matchP[2];
-      }
+        // ============================================================
+        // JSON PAYLOAD EXTRACTION: Extract __NEXT_DATA__ or __INITIAL_STATE__
+        // ============================================================
+        let jsonData = null;
 
-      if (shopId && itemId) {
-        try {
-          // Try v4 Desktop API first
-          const apiUrl = `https://shopee.co.id/api/v4/item/get_item_detail_desktop?itemid=${itemId}&shopid=${shopId}`;
-          const apiResp = await fetch(apiUrl, {
-            headers: {
-              "User-Agent": DESKTOP_HEADERS["User-Agent"],
-              "Accept": "application/json",
-              "Referer": "https://shopee.co.id/",
-              "X-Requested-With": "XMLHttpRequest"
-            }
-          });
+        // Try multiple patterns for JSON payload
+        const jsonPatterns = [
+          /<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i,
+          /<script[^>]+id="__INITIAL_STATE__"[^>]*>([\s\S]*?)<\/script>/i,
+          /<script[^>]+type="application\/json"[^>]*>([\s\S]*?)<\/script>/i,
+          /window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/i,
+          /window\.__NEXT_DATA__\s*=\s*({[\s\S]*?});/i
+        ];
 
-          if (apiResp.ok) {
-            const apiData = await apiResp.json();
-            if (apiData && apiData.data) {
-              const d = apiData.data;
-              if (d.name) title = d.name.trim();
-              if (d.image) imageUrl = `https://cf.shopee.co.id/file/${d.image}`;
-              if (d.price) {
-                const rawPrice = Number(d.price);
-                if (rawPrice > 0) price = String(Math.floor(rawPrice / 100000));
-              } else if (d.price_min && d.price_max) {
-                const minPrice = Math.floor(d.price_min / 100000);
-                const maxPrice = Math.floor(d.price_max / 100000);
-                price = (minPrice === maxPrice) ? String(minPrice) : `${minPrice}-${maxPrice}`;
+        for (const pattern of jsonPatterns) {
+          const match = html.match(pattern);
+          if (match && match[1]) {
+            try {
+              jsonData = JSON.parse(match[1].trim());
+              console.log("JSON Payload found with pattern:", pattern.toString());
+              break;
+            } catch (e) {
+              // Try cleaning the JSON
+              try {
+                const cleaned = match[1].trim().replace(/^[^{]*/, '').replace(/[^}]*$/, '');
+                jsonData = JSON.parse(cleaned);
+                console.log("JSON Payload found after cleaning:");
+                break;
+              } catch (e2) {
+                console.log("Failed to parse JSON with pattern:", pattern.toString());
               }
             }
           }
-
-          // Fallback: v2 API
-          if (!title && !imageUrl) {
-            const apiUrl2 = `https://shopee.co.id/api/v2/item/get?itemid=${itemId}&shopid=${shopId}`;
-            const apiResp2 = await fetch(apiUrl2, {
-              headers: {
-                "User-Agent": DESKTOP_HEADERS["User-Agent"],
-                "Accept": "application/json",
-                "Referer": "https://shopee.co.id/"
-              }
-            });
-
-            if (apiResp2.ok) {
-              const apiData2 = await apiResp2.json();
-              if (apiData2 && apiData2.item) {
-                const item = apiData2.item;
-                if (item.name) title = item.name.trim();
-                if (item.images && item.images[0]) {
-                  imageUrl = `https://cf.shopee.co.id/file/${item.images[0]}`;
-                }
-                if (item.price) price = String(Math.floor(item.price / 100000));
-              }
-            }
-          }
-        } catch (e) {
-          console.log("Shopee API error:", e.message);
         }
+
+        // ============================================================
+        // NAVIGATE JSON STRUCTURE: Extract Product Data
+        // ============================================================
+        if (jsonData) {
+          // Try various JSON structures Shopee uses
+          const paths = [
+            // Common paths
+            ['props', 'pageProps', 'product', 'name'],
+            ['props', 'pageProps', 'product', 'data', 'name'],
+            ['props', 'pageProps', 'initialData', 'name'],
+            ['pageProps', 'product', 'name'],
+            ['pageProps', 'product', 'data', 'name'],
+            ['initialData', 'name'],
+            // Deep nested
+            ['query'],
+            ['routeParams'],
+          ];
+
+          for (const path of paths) {
+            try {
+              let value = jsonData;
+              for (const key of path) {
+                value = value?.[key];
+              }
+              if (value && typeof value === 'string' && value.length > 5) {
+                title = value.trim();
+                break;
+              }
+            } catch (e) {}
+          }
+
+          // Extract image
+          const imagePaths = [
+            ['props', 'pageProps', 'product', 'image'],
+            ['props', 'pageProps', 'product', 'images', 0],
+            ['props', 'pageProps', 'product', 'data', 'image'],
+            ['props', 'pageProps', 'product', 'data', 'images', 0],
+            ['props', 'pageProps', 'initialData', 'image'],
+            ['initialData', 'image'],
+            ['pageProps', 'product', 'image'],
+          ];
+
+          for (const path of imagePaths) {
+            try {
+              let value = jsonData;
+              for (const key of path) {
+                value = value?.[key];
+              }
+              if (value) {
+                if (typeof value === 'string' && value.startsWith('http')) {
+                  imageUrl = value;
+                } else if (typeof value === 'string') {
+                  imageUrl = `https://cf.shopee.co.id/file/${value}`;
+                }
+                if (imageUrl) break;
+              }
+            } catch (e) {}
+          }
+
+          // Extract price
+          const pricePaths = [
+            ['props', 'pageProps', 'product', 'price'],
+            ['props', 'pageProps', 'product', 'data', 'price'],
+            ['props', 'pageProps', 'product', 'price_min'],
+            ['props', 'pageProps', 'product', 'data', 'price_min'],
+            ['props', 'pageProps', 'initialData', 'price'],
+            ['initialData', 'price'],
+            ['pageProps', 'product', 'price'],
+          ];
+
+          for (const path of pricePaths) {
+            try {
+              let value = jsonData;
+              for (const key of path) {
+                value = value?.[key];
+              }
+              if (value) {
+                const numPrice = Number(value);
+                if (numPrice > 0) {
+                  // Shopee uses price * 100000
+                  if (numPrice > 1000000) {
+                    price = String(Math.floor(numPrice / 100000));
+                  } else {
+                    price = String(Math.floor(numPrice));
+                  }
+                  break;
+                }
+              }
+            } catch (e) {}
+          }
+        }
+
+        // ============================================================
+        // FALLBACK: OG Tags + Regex if JSON fails
+        // ============================================================
+        if (!title || !imageUrl) {
+          // Try OG tags
+          if (!title) {
+            const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+              || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+            if (ogTitle) title = ogTitle[1].trim();
+          }
+
+          if (!imageUrl) {
+            const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+              || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+            if (ogImage) imageUrl = ogImage[1].trim();
+          }
+
+          if (!price) {
+            // Try to find price in HTML
+            const priceMatch = html.match(/Rp\s*([\d.,]+)/i)
+              || html.match(/<meta[^>]+property=["']product:price:amount["'][^>]+content=["']([^"']+)["']/i);
+            if (priceMatch) {
+              const cleanPrice = priceMatch[1].replace(/[^\d]/g, '');
+              if (cleanPrice) price = String(Math.floor(Number(cleanPrice)));
+            }
+          }
+        }
+
+      } catch (e) {
+        console.log("Shopee Mobile fetch error:", e.message);
       }
     }
 
+    // ============================================================
     // TAHAP 3: GOOGLEBOT FALLBACK (TikTok, Tokopedia, Others)
+    // ============================================================
     if (!title || !imageUrl) {
       try {
         const htmlResp = await fetch(finalUrl, {
-          headers: GOOGLEBOT_HEADERS,
+          headers: DESKTOP_HEADERS,
           redirect: "follow"
         });
         const html = await htmlResp.text();
 
         // OG Title
         if (!title) {
-          const ogTitlePatterns = [
-            /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
-            /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
-            /<title[^>]*>([^<]+)<\/title>/i
-          ];
-          for (const pattern of ogTitlePatterns) {
-            const match = html.match(pattern);
-            if (match && match[1] && match[1].length > 5) {
-              title = match[1].trim();
-              break;
-            }
-          }
+          const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+            || html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (ogTitle) title = ogTitle[1].trim();
         }
 
         // OG Image
         if (!imageUrl) {
-          const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-            || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-          if (match) imageUrl = match[1].trim();
+          const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+          if (ogImage) imageUrl = ogImage[1].trim();
         }
 
         // JSON-LD
         if (!title || !imageUrl || !price) {
-          const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
-          for (const match of jsonLdMatches) {
+          const jsonLd = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+          if (jsonLd) {
             try {
-              const ld = JSON.parse(match[1]);
-              const ldArray = Array.isArray(ld) ? ld : [ld];
-              for (const item of ldArray) {
-                if (item["@type"] === "Product") {
-                  if (!title && item.name) title = item.name;
-                  if (!imageUrl && item.image) {
-                    imageUrl = Array.isArray(item.image) ? item.image[0] : (typeof item.image === 'object' ? item.image.url : item.image);
-                  }
-                  if (!price && item.offers) {
-                    const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
-                    if (offer && offer.price) price = String(Math.floor(Number(offer.price)));
-                  }
-                  if (title && imageUrl) break;
+              const ld = JSON.parse(jsonLd[1]);
+              if (ld["@type"] === "Product") {
+                if (!title && ld.name) title = ld.name;
+                if (!imageUrl && ld.image) {
+                  imageUrl = Array.isArray(ld.image) ? ld.image[0] : (typeof ld.image === 'object' ? ld.image.url : ld.image);
+                }
+                if (!price && ld.offers?.price) {
+                  price = String(Math.floor(Number(ld.offers.price)));
                 }
               }
-              if (title && imageUrl) break;
             } catch (e) {}
           }
         }
@@ -869,7 +950,9 @@ async function handleScrapeProduct(request) {
       }
     }
 
+    // ============================================================
     // TAHAP 4: ANTI-GARBAGE FILTER
+    // ============================================================
     if (title) {
       title = decodeHtmlEntities(title)
         .replace(/\s*[|\-]\s*(Shopee Indonesia|Tokopedia|TikTok Shop|Lazada).*$/gi, "")
@@ -901,7 +984,9 @@ async function handleScrapeProduct(request) {
       }
     }
 
+    // ============================================================
     // FINAL RESPONSE
+    // ============================================================
     if (title || imageUrl) {
       return jsonResponse({
         success: true,
