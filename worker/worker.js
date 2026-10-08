@@ -630,6 +630,93 @@ function extractTitleFromUrlSlug(urlStr) {
 }
 
 // --- Handler: POST /api/scrape-product (Server-Side + Client-Side Fallback) ---
+
+// ============================================================
+// CORS PROXY: Fetch external URLs to bypass CORS
+// ============================================================
+async function handleProxy(request) {
+  try {
+    const url = new URL(request.url);
+    const targetUrl = url.searchParams.get('url');
+    
+    if (!targetUrl) {
+      return jsonResponse({ error: 'URL parameter required' }, 400);
+    }
+    
+    // Validate URL
+    try {
+      new URL(targetUrl);
+    } catch {
+      return jsonResponse({ error: 'Invalid URL' }, 400);
+    }
+    
+    // Only allow e-commerce domains
+    const allowed = ['tokopedia', 'shopee', 'tiktok', 'blibli', 'lazada', 'bukalapak'];
+    const targetParsed = new URL(targetUrl);
+    if (!allowed.some(d => targetParsed.hostname.includes(d))) {
+      return jsonResponse({ error: 'Domain not allowed' }, 403);
+    }
+    
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8'
+    };
+    
+    const resp = await fetch(targetUrl, { headers });
+    const html = await resp.text();
+    
+    // Extract data
+    let title = '';
+    let imageUrl = '';
+    let price = '';
+    
+    // JSON-LD
+    const ld = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+    if (ld) {
+      for (const s of ld) {
+        try {
+          const c = s.match(/>([\s\S]*?)<\/script>/i)?.[1];
+          if (c) {
+            const j = JSON.parse(c);
+            const product = j['@type'] === 'Product' ? j : j['@graph']?.find(x => x['@type'] === 'Product');
+            if (product) {
+              if (!title && product.name) title = product.name;
+              if (!imageUrl && product.image) imageUrl = typeof product.image === 'string' ? product.image : product.image[0];
+              if (!price && product.offers?.price) price = String(Math.floor(Number(product.offers.price)));
+            }
+          }
+        } catch(e) {}
+      }
+    }
+    
+    // OG tags
+    if (!title) {
+      const m = html.match(/<meta[^>]+\bproperty=["']og:title["'][^>]+\bcontent=["']([^"']+)["']/i);
+      if (m?.[1]) title = m[1].trim();
+    }
+    if (!imageUrl) {
+      const m = html.match(/<meta[^>]+\bproperty=["']og:image["'][^>]+\bcontent=["']([^"']+)["']/i);
+      if (m?.[1]) imageUrl = m[1];
+    }
+    if (!price) {
+      const m = html.match(/<meta[^>]+\bproperty=["']product:price:amount["'][^>]+\bcontent=["']([^"']+)["']/i);
+      if (m?.[1]) price = String(Math.floor(Number(m[1])));
+    }
+    
+    return jsonResponse({
+      success: !!(title || imageUrl),
+      title: title,
+      imageUrl: imageUrl,
+      price: price,
+      html: html.substring(0, 50000) // Return first 50k chars for client parsing
+    });
+    
+  } catch (e) {
+    return jsonResponse({ error: e.message }, 500);
+  }
+}
+
 async function handleScrapeProduct(request) {
   let body;
   try {
@@ -1376,6 +1463,7 @@ export default {
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
     if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
+    if (url.pathname === "/api/proxy" && request.method === "GET") return handleProxy(request);
     if (url.pathname === "/api/public/store" && request.method === "GET") return handlePublicStore(request, env, ctx);
     if (url.pathname === "/api/create-payment" && request.method === "POST") return handleCreatePayment(request, env);
     if (url.pathname === "/api/webhook/gapura" && request.method === "POST") return handleGapuraWebhook(request, env);

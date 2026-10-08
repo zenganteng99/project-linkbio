@@ -965,131 +965,31 @@
 // CLIENT-SIDE SCRAPING: Direct browser fetch (real IP)
 // ============================================================
 async function scrapeClientSide(targetUrl, index) {
-    const isShopee = targetUrl.includes("shopee") || targetUrl.includes("shope.ee");
-    
-    // Mobile browser headers (most likely to work)
-    const mobileHeaders = new Headers();
-    mobileHeaders.append("User-Agent", navigator.userAgent);
-    mobileHeaders.append("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-    mobileHeaders.append("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7");
-    
-    let title = "";
-    let imageUrl = "";
-    let price = "";
-    
     try {
-        // Direct fetch from browser (uses real user IP)
-        const response = await fetch(targetUrl, {
-            method: "GET",
-            headers: mobileHeaders,
-            mode: "cors",
-            credentials: "omit"
-        });
+        // Use worker proxy to fetch (bypasses CORS)
+        const proxyUrl = `${WORKER_ORIGIN}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        const response = await fetch(proxyUrl);
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(`Proxy error: ${response.status}`);
         }
         
-        const html = await response.text();
+        const data = await response.json();
         
-        // ============================================================
-        // SHOPEE: Extract JSON from __NEXT_DATA__
-        // ============================================================
-        if (isShopee) {
-            // Look for JSON payload
-            const jsonMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
-                || html.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/i);
-            
-            if (jsonMatch && jsonMatch[1]) {
-                try {
-                    const json = JSON.parse(jsonMatch[1]);
-                    
-                    // Navigate JSON structure
-                    const namePaths = [
-                        ["props", "pageProps", "product", "name"],
-                        ["pageProps", "product", "name"],
-                        ["initialData", "name"]
-                    ];
-                    
-                    for (const path of namePaths) {
-                        let v = json;
-                        for (const k of path) v = v?.[k];
-                        if (v && typeof v === 'string' && v.length > 5) {
-                            title = v.trim();
-                            break;
-                        }
-                    }
-                    
-                    // Image
-                    const imgPaths = [
-                        ["props", "pageProps", "product", "image"],
-                        ["props", "pageProps", "product", "images", 0],
-                        ["pageProps", "product", "image"]
-                    ];
-                    
-                    for (const path of imgPaths) {
-                        let v = json;
-                        for (const k of path) v = v?.[k];
-                        if (v) {
-                            imageUrl = typeof v === 'string' ? 
-                                (v.startsWith('http') ? v : `https://cf.shopee.co.id/file/${v}`) : "";
-                            if (imageUrl) break;
-                        }
-                    }
-                    
-                    // Price
-                    const pricePaths = [
-                        ["props", "pageProps", "product", "price"],
-                        ["pageProps", "product", "price"]
-                    ];
-                    
-                    for (const path of pricePaths) {
-                        let v = json;
-                        for (const k of path) v = v?.[k];
-                        if (v) {
-                            const p = Number(v);
-                            if (p > 0) {
-                                price = String(Math.floor(p > 1000000 ? p / 100000 : p));
-                                break;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.log("JSON parse error:", e);
-                }
-            }
+        if (data.success || data.title || data.imageUrl) {
+            applyScrapeResult({
+                title: data.title || "",
+                imageUrl: data.imageUrl || "",
+                price: data.price || "",
+                source: "proxy"
+            }, index);
+            showToast("success", "Data Terisi!", "Data produk berhasil diambil.");
+        } else {
+            throw new Error("Tidak dapat mengekstrak data produk.");
         }
-        
-        // ============================================================
-        // OG Tags fallback
-        // ============================================================
-        if (!title) {
-            const ogTitle = html.match(/<meta[^>]+\bproperty=["']og:title["'][^>]+\bcontent=["']([^"']+)["']/i)
-                || html.match(/<title[^>]*>([^<]+)<\/title>/i);
-            if (ogTitle) title = ogTitle[1].trim();
-        }
-        
-        if (!imageUrl) {
-            const ogImage = html.match(/<meta[^>]+\bproperty=["']og:image["'][^>]+\bcontent=["']([^"']+)["']/i);
-            if (ogImage) imageUrl = ogImage[1].trim();
-        }
-        
-        if (!price) {
-            const metaPrice = html.match(/<meta[^>]+\bproperty=["']product:price:amount["'][^>]+\bcontent=["']([^"']+)["']/i);
-            if (metaPrice) price = String(Math.floor(Number(metaPrice[1].replace(/[^\d]/g, ''))));
-        }
-        
     } catch (e) {
-        console.log("Direct fetch error:", e);
+        console.log("Proxy scrape error:", e);
         throw e;
-    }
-    
-    // Apply result
-    if (title || imageUrl) {
-        applyScrapeResult({ title, imageUrl, price, source: "client" }, index);
-        showToast("success", "Data Terisi!", "Data diambil dari browser Anda.");
-    } else {
-        throw new Error("Tidak dapat mengekstrak data produk.");
     }
 }
 
