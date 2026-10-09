@@ -648,8 +648,8 @@
                     } else if (result.type === 'broker') {
                         appliedDiscountPercent = 100;
                         isEndorseSuccess = true;
-                        discountAmount = Math.floor(packagePrice * (appliedDiscountPercent / 100));
-                        document.getElementById('coupon-msg').innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Kode Broker Valid! Akses Sub-Affiliate Terbuka.`;
+                        discountAmount = Math.floor(currentBasePrice * (appliedDiscountPercent / 100));
+                        document.getElementById('couponFeedback').innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Kode Broker Valid! Akses Sub-Affiliate Terbuka.`;
                     }
                 } else {
                     appliedDiscountPercent = 0;

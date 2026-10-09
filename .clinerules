@@ -1,0 +1,34 @@
+# ==============================================================================
+# CLINE SAFEGUARD RULES FOR CUSTOM LINK PROJECT
+# ==============================================================================
+
+## 1. FILE ENCODING & CHARACTER INTEGRITY
+- WAJIB gunakan encoding UTF-8 murni tanpa BOM untuk semua file (.html, .js, .json, .css).
+- DILARANG menggunakan PowerShell `Set-Content` atau `Out-File` untuk mengedit/menyimpan file karena menyebabkan encoding ANSI/Windows-1252 yang merusak emoji menjadi `??`.
+- Jika harus menggunakan skrip otomatis untuk mengubah file, WAJIB menggunakan Node.js:
+  `fs.writeFileSync(path, content, { encoding: 'utf8' })`
+- DILARANG menghapus, mengubah, atau merusak karakter emoji antarmuka (🔥, 📱, 💻, 📶, 🗺️, 📍, 🔒, 👑, ⚡, 🥇, 🥈, 🥉).
+
+## 2. STRICT PROHIBITION: NO BLIND GLOBAL REPLACEMENT
+- DILARANG KERAS melakukan replace string/regex global membabi buta pada kata umum seperti:
+  `google`, `tiktok`, `instagram`, `direct`, `redirect`, `url`, atau karakter `?`.
+- Penggantian teks HANYA boleh dilakukan pada konteks fungsi atau elemen yang spesifik.
+- DILARANG memasukkan emoji ke dalam nama identifier teknis:
+  - Nama variabel JS (contoh: dilarang membuat `webRe🔗Url`, `🎵_link`)
+  - Key objek JSON / Supabase payload (wajib: `tiktok_link`, `tiktok_pixel_id`, `google_analytics_id`)
+  - ID/Class elemen HTML (wajib: `id="tiktok_link"`, bukan `id="🎵_link"`)
+  - URL eksternal atau domain pihak ketiga (wajib: `fonts.googleapis.com`, bukan `fonts.🔍apis.com`)
+
+## 3. PRE-COMPLETION SYNTAX VERIFICATION
+- Setiap kali selesai mengedit file JavaScript (terutama `worker/worker.js`), jalankan validasi sintaks sebelum melapor ke user:
+  `node --check worker/worker.js`
+- Pastikan tidak ada syntax error, bracket tidak seimbang, atau token asing.
+
+## 4. DEPLOYMENT & GIT SAFETY GUARDRAILS
+- DILARANG menjalankan perintah `npx wrangler deploy` ke production secara otomatis tanpa instruksi eksplisit dari user.
+- DILARANG menjalankan `git push --force` ke branch `main` tanpa izin tegas dari user.
+- Semua eksperimen perbaikan besar harus diarahkan ke branch terpisah atau diuji di lokal terlebih dahulu.
+
+## 5. DATABASE & API CONTRACT PROTECTION
+- DILARANG mengubah nama kolom database Supabase, parameter RPC PostgreSQL, atau binding Cloudflare D1/R2 tanpa persetujuan arsitektur dari user.
+- Pastikan backward-compatibility: jangan merusak skema data yang sedang aktif digunakan oleh pengguna live.

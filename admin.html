@@ -962,34 +962,24 @@
 }
 
 // ============================================================
-// CLIENT-SIDE SCRAPING: Direct browser fetch (real IP)
+// CLIENT-SIDE SCRAPING: Direct browser fetch via Microlink (real IP)
 // ============================================================
 async function scrapeClientSide(targetUrl, index) {
     try {
-        // Use worker proxy to fetch (bypasses CORS)
-        const proxyUrl = `${WORKER_ORIGIN}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(proxyUrl);
-        
-        if (!response.ok) {
-            throw new Error(`Proxy error: ${response.status}`);
+        const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}`);
+        const json = await res.json();
+        if (json.status === 'success' && json.data) {
+            const title = (json.data.title || '').replace(/\s*[|\-]\s*Shopee.*$/gi, '').trim();
+            const imageUrl = json.data.image?.url || '';
+            if (title || imageUrl) {
+                applyScrapeResult({ title, imageUrl, price: '', source: 'browser' }, index);
+                showToast('success', 'Data Terisi!', 'Data produk berhasil diambil.');
+                return;
+            }
         }
-        
-        const data = await response.json();
-        
-        if (data.success || data.title || data.imageUrl) {
-            applyScrapeResult({
-                title: data.title || "",
-                imageUrl: data.imageUrl || "",
-                price: data.price || "",
-                source: "proxy"
-            }, index);
-            showToast("success", "Data Terisi!", "Data produk berhasil diambil.");
-        } else {
-            throw new Error("Tidak dapat mengekstrak data produk.");
-        }
+        showToast('warning', 'Manual Required', 'Link Shopee terproteksi. Silakan isi judul manual.');
     } catch (e) {
-        console.log("Proxy scrape error:", e);
-        throw e;
+        showToast('warning', 'Manual Required', 'Gagal membaca link. Silakan isi manual.');
     }
 }
 

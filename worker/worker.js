@@ -32,8 +32,6 @@ function getCorsHeaders(request) {
 }
 
 // =============================================================================
-
-// =============================================================================
 // CLOUDFLARE R2 STORAGE - Image Upload/Delete/CDN
 // =============================================================================
 async function handleUploadImage(request, env) {
@@ -709,7 +707,7 @@ async function handleProxy(request) {
       title: title,
       imageUrl: imageUrl,
       price: price,
-      html: html.substring(0, 50000) // Return first 50k chars for client parsing
+      html: html.substring(0, 50000)
     });
     
   } catch (e) {
@@ -760,7 +758,6 @@ async function handleScrapeProduct(request) {
             // Detect app intent links
             if (loc.startsWith('intent://')) {
               isAppLink = true;
-              // Try to extract product URL from intent
               const fallbackMatch = loc.match(/S.browser_fallback_url=([^;]+)/);
               if (fallbackMatch) {
                 const fallbackUrl = decodeURIComponent(fallbackMatch[1]);
@@ -779,7 +776,6 @@ async function handleScrapeProduct(request) {
         break;
       }
       
-      // If it's an app-only link, return clear message
       if (isAppLink) {
         return jsonResponse({ 
           success: false, 
@@ -789,7 +785,6 @@ async function handleScrapeProduct(request) {
         }, 200);
       }
       
-      // Fetch the final page
       const pageResp = await fetch(finalUrl, { headers: tokpedHeaders });
       if (!pageResp.ok) {
         return jsonResponse({ success: false, requiresClientScraping: true, targetUrl: targetUrl, message: 'Tokopedia blocked. Gunakan browser.' }, 200);
@@ -869,40 +864,49 @@ async function handleScrapeProduct(request) {
       let shopId = null, itemId = null;
       let currentUrl = targetUrl;
 
-      // Chase redirects
-      for (let i = 0; i < 8; i++) {
-        try {
-          const resp = await fetch(currentUrl, { headers, redirect: "manual" });
-          if (resp.status >= 300 && resp.status < 400) {
-            let loc = resp.headers.get("location");
-            if (!loc) break;
-            loc = loc.startsWith("http") ? loc : new URL(loc, currentUrl).href;
-
-            // Extract IDs
-            const match = loc.match(/-i\.(\d+)\.(\d+)/) || loc.match(/\/product\/(\d+)\/(\d+)/);
-            if (match) { shopId = match[1]; itemId = match[2]; break; }
-
-            // Decode nested URL
-            if (loc.includes("shopee")) {
-              const u = new URL(loc);
-              const nested = u.searchParams.get("url") || u.searchParams.get("l");
-              if (nested) {
-                try {
-                  let decoded = decodeURIComponent(nested);
-                  if (decoded.includes("%")) decoded = decodeURIComponent(decoded);
-                  const nestedMatch = decoded.match(/-i\.(\d+)\.(\d+)/);
-                  if (nestedMatch) { shopId = nestedMatch[1]; itemId = nestedMatch[2]; break; }
-                } catch (e) {}
-              }
-            }
-            currentUrl = loc;
-          } else {
-            break;
-          }
-        } catch (e) { break; }
+      // Direct ID extraction from URL if available
+      const directMatch = targetUrl.match(/\/product\/(\d+)\/(\d+)/) || targetUrl.match(/-i\.(\d+)\.(\d+)/);
+      if (directMatch) {
+        shopId = directMatch[1];
+        itemId = directMatch[2];
       }
 
-      // Try API
+      // Chase redirects for shortlinks if IDs not found yet
+      if (!shopId || !itemId) {
+        for (let i = 0; i < 8; i++) {
+          try {
+            const resp = await fetch(currentUrl, { headers, redirect: "manual" });
+            if (resp.status >= 300 && resp.status < 400) {
+              let loc = resp.headers.get("location");
+              if (!loc) break;
+              loc = loc.startsWith("http") ? loc : new URL(loc, currentUrl).href;
+
+              // Extract IDs
+              const match = loc.match(/-i\.(\d+)\.(\d+)/) || loc.match(/\/product\/(\d+)\/(\d+)/);
+              if (match) { shopId = match[1]; itemId = match[2]; break; }
+
+              // Decode nested URL
+              if (loc.includes("shopee")) {
+                const u = new URL(loc);
+                const nested = u.searchParams.get("url") || u.searchParams.get("l");
+                if (nested) {
+                  try {
+                    let decoded = decodeURIComponent(nested);
+                    if (decoded.includes("%")) decoded = decodeURIComponent(decoded);
+                    const nestedMatch = decoded.match(/-i\.(\d+)\.(\d+)/);
+                    if (nestedMatch) { shopId = nestedMatch[1]; itemId = nestedMatch[2]; break; }
+                  } catch (e) {}
+                }
+              }
+              currentUrl = loc;
+            } else {
+              break;
+            }
+          } catch (e) { break; }
+        }
+      }
+
+      // Try Shopee API if shopId and itemId found
       if (shopId && itemId) {
         const apiUrls = [
           `https://shopee.co.id/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`,
@@ -973,8 +977,13 @@ async function handleScrapeProduct(request) {
         } catch (e) {}
       }
 
+      // URL slug fallback
+      const urlFallbackTitle = extractTitleFromUrlSlug(targetUrl);
+      if (urlFallbackTitle) {
+        return jsonResponse({ success: true, data: { title: urlFallbackTitle, imageUrl: "", price: "", source: "url-fallback" } }, 200);
+      }
+
       // ALL SERVER METHODS FAILED -> Client-Side Fallback
-      console.log("All server methods failed, returning client-side fallback");
       return jsonResponse({
         success: false,
         requiresClientScraping: true,
@@ -996,14 +1005,14 @@ async function handleScrapeProduct(request) {
 
     let title = "", imageUrl = "", price = "";
 
-    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+    const ogTitle = html.match(/<meta[^>]+ property=["']og:title["'][^>]+ content=["']([^"']+)["']/i)
       || html.match(/<title[^>]*>([^<]+)<\/title>/i);
     if (ogTitle) title = ogTitle[1].trim();
 
-    const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+    const ogImage = html.match(/<meta[^>]+ property=["']og:image["'][^>]+ content=["']([^"']+)["']/i);
     if (ogImage) imageUrl = ogImage[1].trim();
 
-    const jsonLd = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    const jsonLd = html.match(/<script[^>]+ type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
     if (jsonLd) {
       try {
         const ld = JSON.parse(jsonLd[1]);
@@ -1016,7 +1025,7 @@ async function handleScrapeProduct(request) {
     }
 
     if (!price) {
-      const metaPrice = html.match(/<meta[^>]+property=["'](?:og:price:amount|product:price:amount)["'][^>]+content=["']([^"']+)["']/i);
+      const metaPrice = html.match(/<meta[^>]+ property=["'](?:og:price:amount|product:price:amount)["'][^>]+ content=["']([^"']+)["']/i);
       if (metaPrice) price = String(Math.floor(Number(metaPrice[1].replace(/[^\d.]/g, ""))));
     }
 
@@ -1037,6 +1046,7 @@ async function handleScrapeProduct(request) {
     return jsonResponse({ success: false, message: "Terjadi kesalahan internal server." }, 500);
   }
 }
+
 // --- Handler: POST /api/track ---
 async function handleTrack(request, env, ctx) {
   const ua = request.headers.get('user-agent') || '';
@@ -1093,6 +1103,11 @@ async function handleTrack(request, env, ctx) {
 
 // --- Handler: GET /api/admin/analytics ---
 async function handleAdminAnalytics(request, env, ctx) {
+  const cf = request.cf || {};
+  const colo = cf.colo || "CGK";
+  const edgeRegion = cf.region || cf.regionCode || "Banten";
+  const httpProtocol = cf.httpProtocol || "HTTP/3";
+
   const cacheUrl = new URL(request.url);
   const cacheKey = new Request(cacheUrl.toString(), request);
   const cache = caches.default;
@@ -1124,6 +1139,14 @@ async function handleAdminAnalytics(request, env, ctx) {
       top_products: topProducts,
       devices: devices,
       referrers: referrers,
+      edgeTelemetry: {
+        visitorISP: formatISPName(cf.asOrganization),
+        visitorRegion: edgeRegion,
+        country: cf.country || "ID",
+        coloName: resolveColoName(colo),
+        protocol: httpProtocol,
+        edgeLatencyEstimate: "~8ms"
+      },
       locations: locationsData
     };
 
@@ -1462,6 +1485,8 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+    if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 });
+
     if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
     if (url.pathname === "/api/proxy" && request.method === "GET") return handleProxy(request);
     if (url.pathname === "/api/public/store" && request.method === "GET") return handlePublicStore(request, env, ctx);
