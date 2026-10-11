@@ -419,9 +419,9 @@
                     </div>
                     <div class="border-t border-gray-200 pt-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Ubah Password Admin Baru</label>
-                        <div class="flex gap-2">
-                            <input type="password" id="new_pin" placeholder="Password baru" maxlength="64" class="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
-                            <input type="password" id="confirm_pin" placeholder="Konfirmasi" maxlength="64" class="w-32 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input type="password" id="new_pin" placeholder="Password baru" maxlength="64" class="w-full sm:flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
+                            <input type="password" id="confirm_pin" placeholder="Konfirmasi" maxlength="64" class="w-full sm:w-1/2 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
                         </div>
                         <p class="text-xs text-gray-400 mt-1">Minimal 4 karakter. Kosongkan jika tidak diubah.</p>
                     </div>
@@ -682,9 +682,8 @@
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         const SB_BUCKET = "public-assets";
-        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
-            ? window.location.origin 
-            : "https://customlink-webhook.modernshopp.workers.dev";
+        // D1 database binding only exists in Cloudflare Worker, not in Pages
+        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
         
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
         
