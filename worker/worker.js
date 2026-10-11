@@ -1231,7 +1231,7 @@ async function handlePublicStore(request, env, ctx) {
     const cacheHeader = isNoCache 
       ? "no-store, no-cache, must-revalidate" 
       : "public, max-age=0, s-maxage=300, must-revalidate";
-    const response = jsonResponse(payload, 200, {
+    const response = jsonResponse(payload, 200, request, {
       "Cache-Control": cacheHeader,
       "CF-Cache-Status": isNoCache ? "BYPASS" : "MISS"
     });
@@ -1240,7 +1240,8 @@ async function handlePublicStore(request, env, ctx) {
     }
     return response;
   } catch (err) {
-    return jsonResponse({ error: "Gagal mengambil katalog dari server." }, 500);
+    console.error('Store fetch error:', err);
+    return jsonResponse({ error: "Gagal mengambil katalog dari server." }, 500, request);
   }
 }
 
