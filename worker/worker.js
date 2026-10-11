@@ -17,12 +17,14 @@
 const ALLOWED_ORIGINS = [
   'https://customlink.id',
   'https://www.customlink.id',
-  'https://customlink.pages.dev'
+  'https://customlink.pages.dev',
+  'http://127.0.0.1:5500',
+  'http://localhost:5500'
 ];
 
 function getCorsHeaders(request) {
-  const origin = request.headers.get('Origin') || request.headers.get('origin');
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const origin = request.headers.get('Origin');
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '*';
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -269,10 +271,18 @@ const SUPABASE_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "";
 const DEFAULT_SUPABASE_SERVICE_KEY = "";
 
-function jsonResponse(payload, status = 200, extraHeaders = {}) {
+function jsonResponse(payload, status = 200, request = null, extraHeaders = {}) {
+  const origin = request ? request.headers.get('Origin') : null;
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : '*';
   return new Response(JSON.stringify(payload), {
     status: status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extraHeaders }
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      ...extraHeaders
+    }
   });
 }
 
@@ -362,6 +372,7 @@ async function handleCreatePayment(request, env) {
 
   const buyerName = String(body.buyerName || "").trim();
   const buyerPhone = String(body.buyerPhone || "").trim();
+  const buyerEmail = String(body.buyerEmail || "").trim();
   const packageName = String(body.packageName || "").trim();
   const amount = Number(body.amount);
   const isUpgrade = Boolean(body.isUpgrade);
@@ -422,7 +433,8 @@ async function handleCreatePayment(request, env) {
       isUpgrade: isUpgrade,
       clientSlug: clientSlug,
       targetMaxProducts: targetMaxProducts,
-      packageName: packageName
+      packageName: packageName,
+      customerEmail: buyerEmail
     }
   };
   if (subMerchantId) danaBody.subMerchantId = subMerchantId;
@@ -583,6 +595,13 @@ async function handleGapuraWebhook(request, env) {
       body: JSON.stringify({ client_slug: clientSlug, admin_pin: defaultPin, profile_name: customerName, max_products: targetMaxProducts })
     }).catch(() => {});
 
+    // Send activation email to customer
+    const customerEmail = payload.customerEmail || payload.email || addInfo.customerEmail || addInfo.email || "";
+    if (customerEmail && customerEmail.includes("@")) {
+      const emailHtml = getActivationEmailTemplate(customerName, clientSlug, defaultPin, packageName);
+      await sendEmail({ to: customerEmail, subject: '🚀 Detail Akses & Login CustomLink Elite Anda', html: emailHtml }, env).catch(e => console.error('Failed to send activation email:', e));
+    }
+    
     return jsonResponse({ status: "OK", message: "Aktivasi berhasil", slug: clientSlug, max_products: targetMaxProducts }, 200);
   } catch (err) {
     return jsonResponse({ status: "ERROR", message: "Kesalahan internal webhook." }, 500);
@@ -1103,6 +1122,12 @@ async function handleTrack(request, env, ctx) {
 
 // --- Handler: GET /api/admin/analytics ---
 async function handleAdminAnalytics(request, env, ctx) {
+  // Validate D1 binding
+  if (!env.DB) {
+    console.error('D1 database binding not found');
+    return jsonResponse({ error: 'Database not configured' }, 500, request);
+  }
+  
   const cf = request.cf || {};
   const colo = cf.colo || "CGK";
   const edgeRegion = cf.region || cf.regionCode || "Banten";
@@ -1150,11 +1175,12 @@ async function handleAdminAnalytics(request, env, ctx) {
       locations: locationsData
     };
 
-    const response = jsonResponse(payload, 200, { 'Cache-Control': 'public, max-age=60, s-maxage=60' });
+    const response = jsonResponse(payload, 200, request, { 'Cache-Control': 'public, max-age=60, s-maxage=60' });
     if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(cache.put(cacheKey, response.clone()));
     return response;
   } catch (err) {
-    return jsonResponse({ error: 'Kesalahan D1 analitik: ' + err.message }, 500);
+    console.error('Analytics error:', err);
+    return jsonResponse({ error: 'Kesalahan D1 analitik: ' + err.message }, 500, request);
   }
 }
 
@@ -1479,12 +1505,196 @@ async function handleGarbageCollector(env) {
   }
 }
 
+
+// =============================================================================
+// PASSWORD RESET HANDLERS
+// =============================================================================
+
+async function sendEmail({ to, subject, html }, env) {
+  const resendKey = env && env.RESEND_API_KEY;
+  const recipients = Array.isArray(to) ? to : [to];
+  
+  if (resendKey) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + resendKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'CustomLink <no-reply@customlink.id>',
+        to: recipients,
+        subject,
+        html
+      })
+    });
+    
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Resend API error:', res.status, errText);
+      return false;
+    }
+    return true;
+  }
+  
+  // Fallback to MailChannels (free)
+  const mailchannelsPayload = {
+    personalizations: recipients.map(email => ({ to: [{ email }] })),
+    from: { email: 'no-reply@customlink.id', name: 'CustomLink' },
+    subject,
+    content: [{ type: 'text/html', value: html }]
+  };
+  const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(mailchannelsPayload)
+  });
+  return res.ok;
+}
+
+function getPasswordResetEmailTemplate(code) {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="color: #7C3AED;">🔐 Reset Password Admin</h1>
+    <p style="color: #666;">Kami menerima permintaan reset password untuk akun admin Anda.</p>
+  </div>
+  <div style="background: #F3F4F6; border-radius: 12px; padding: 30px; text-align: center;">
+    <p style="font-size: 14px; color: #666; margin-bottom: 10px;">Gunakan kode verifikasi berikut:</p>
+    <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #7C3AED; margin: 20px 0;">${code}</div>
+    <p style="font-size: 12px; color: #999;">Kode berlaku 10 menit. Jangan bagikan kepada siapapun.</p>
+  </div>
+  <p style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">© CustomLink</p>
+</body>
+</html>
+
+function getActivationEmailTemplate(clientName, clientSlug, adminPin, packageName) {
+  const adminUrl = 'https://customlink.id/admin.html?slug=' + encodeURIComponent(clientSlug);
+  const storeUrl = 'https://customlink.id/' + encodeURIComponent(clientSlug);
+  
+  return '<!DOCTYPE html>' +
+'<html>' +
+'<head><meta charset="utf-8"></head>' +
+'<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">' +
+'  <div style="text-align: center; margin-bottom: 30px;">' +
+'    <h1 style="color: #7C3AED;">🎉 Selamat Datang di CustomLink Elite!</h1>' +
+'    <p style="color: #666; font-size: 16px;">Halo <strong>' + clientName + '</strong>, pembayaran Anda untuk <strong>' + packageName + '</strong> telah berhasil dikonfirmasi.</p>' +
+'  </div>' +
+'  ' +
+'  <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; padding: 25px; margin-bottom: 25px;">' +
+'    <h3 style="margin-top: 0; color: #1E293B; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px;">📋 Informasi Akses Toko Anda</h3>' +
+'    <p style="margin: 8px 0;"><strong>Link Toko Publik:</strong> <a href="' + storeUrl + '" target="_blank" style="color: #7C3AED;">' + storeUrl + '</a></p>' +
+'    <p style="margin: 8px 0;"><strong>Link Admin Panel:</strong> <a href="' + adminUrl + '" target="_blank" style="color: #7C3AED;">' + adminUrl + '</a></p>' +
+'    <p style="margin: 8px 0;"><strong>Client Slug:</strong> <code style="background: #E2E8F0; padding: 2px 6px; border-radius: 4px;">' + clientSlug + '</code></p>' +
+'    <p style="margin: 8px 0;"><strong>PIN / Password Default:</strong> <code style="background: #E2E8F0; padding: 2px 6px; border-radius: 4px;">' + adminPin + '</code></p>' +
+'  </div>' +
+'  ' +
+'  <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 15px; margin-bottom: 25px; font-size: 13px; color: #92400E;">' +
+'    ⚠️ <strong>Catatan Keamanan Penting:</strong> Segera login ke Admin Panel menggunakan PIN default di atas, lalu ubah password Anda demi keamanan data toko.' +
+'  </div>' +
+'  ' +
+'  <div style="text-align: center;">' +
+'    <a href="' + adminUrl + '" style="background: linear-gradient(135deg, #7C3AED, #DB2777); color: #fff; padding: 12px 25px; border-radius: 10px; text-decoration: none; font-weight: bold; display: inline-block;">Login ke Admin Panel Sekarang 🚀</a>' +
+'  </div>' +
+'  ' +
+'  <p style="text-align: center; color: #999; font-size: 12px; margin-top: 40px;">© CustomLink Elite. Sekali bayar aktif seumur hidup.</p>' +
+'</body>' +
+'</html>';
+}`;
+}
+
+async function handleSendPasswordResetEmail(request, env) {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return jsonResponse({ success: false, message: 'Server not configured' }, 500, request);
+  }
+  
+  try {
+    const { email } = await request.json();
+    if (!email || !email.includes('@')) {
+      return jsonResponse({ success: false, message: 'Email tidak valid' }, 400, request);
+    }
+    
+    const supabaseUrl = 'https://aonbjbcytrpjaxuhyucq.supabase.co';
+    const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    // Call RPC to request password reset
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/request_password_reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({ p_email: email })
+    });
+    
+    const rpcData = await rpcRes.json();
+    
+    if (!rpcRes.ok) {
+      return jsonResponse({ success: false, message: rpcData.message || 'Gagal request reset' }, rpcRes.status, request);
+    }
+    
+    // Extract token and code from RPC response
+    const resetData = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    const vCode = resetData && (resetData.verification_code || resetData.v_code);
+    const vToken = resetData && (resetData.verification_token || resetData.v_token);
+    
+    // Send email if code exists
+    if (vCode) {
+      const emailHtml = getPasswordResetEmailTemplate(vCode);
+      await sendEmail({ to: email, subject: '🔐 Kode Reset Password Admin', html: emailHtml }, env);
+    }
+
+    return jsonResponse({ success: true, verification_token: vToken || null, message: 'Kode verifikasi telah dikirim ke email Anda' }, 200, request);
+  } catch (err) {
+    console.error('Password reset error:', err);
+    return jsonResponse({ success: false, message: 'Terjadi kesalahan server' }, 500, request);
+  }
+}
+
+async function handleVerifyPasswordResetCode(request, env) {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return jsonResponse({ success: false, message: 'Server not configured' }, 500, request);
+  }
+  
+  try {
+    const { email, code, token } = await request.json();
+    if (!email || !code || !token) {
+      return jsonResponse({ success: false, message: 'Data tidak lengkap' }, 400, request);
+    }
+    
+    const supabaseUrl = 'https://aonbjbcytrpjaxuhyucq.supabase.co';
+    const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/verify_password_reset_code`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey
+      },
+      body: JSON.stringify({ p_email: email, p_code: code, p_token: token })
+    });
+    
+    const rpcData = await rpcRes.json();
+    
+    if (!rpcRes.ok) {
+      return jsonResponse({ success: false, message: rpcData.message || 'Verifikasi gagal' }, rpcRes.status, request);
+    }
+    
+    return jsonResponse(rpcData, 200, request);
+  } catch (err) {
+    console.error('Verify code error:', err);
+    return jsonResponse({ success: false, message: 'Terjadi kesalahan server' }, 500, request);
+  }
+}
+
 // --- Router Utama ---
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: getCorsHeaders(request) });
     if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 });
 
     if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
@@ -1503,6 +1713,8 @@ export default {
     if (url.pathname === "/api/upload-image" && request.method === "POST") return handleUploadImage(request, env);
     if (url.pathname === "/api/delete-image" && request.method === "POST") return handleDeleteImage(request, env);
     if (url.pathname === "/api/clear-cache" && request.method === "POST") return handleClearCache(request, env);
+    if (url.pathname === "/api/send-password-reset-email" && request.method === "POST") return handleSendPasswordResetEmail(request, env);
+    if (url.pathname === "/api/verify-password-reset-code" && request.method === "POST") return handleVerifyPasswordResetCode(request, env);
     if (request.method === "GET") return handlePageRender(request, env, ctx);
 
     return jsonResponse({ success: false, message: "Not found." }, 404);

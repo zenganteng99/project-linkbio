@@ -483,6 +483,11 @@
                     <input type="tel" id="modalBuyerPhone" required placeholder="Contoh: 081234567890" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
                 </div>
 
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Alamat Email (Untuk Kirim Akses Toko)</label>
+                    <input type="email" id="modalBuyerEmail" placeholder="Contoh: rian@gmail.com" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+
                 <!-- Voucher Input Section -->
                 <div>
                     <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Kode Endorse / Kode Broker</label>
@@ -720,7 +725,7 @@
                 const response = await fetch(PAYMENT_ENDPOINT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ buyerName, buyerPhone, packageName, amount })
+                    body: JSON.stringify({ buyerName, buyerPhone, buyerEmail: document.getElementById('modalBuyerEmail').value.trim(), packageName, amount })
                 });
                 const result = await response.json();
 
