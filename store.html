@@ -13,6 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://down-id.img.susercontent.com">
     
     <!-- 3. Non-blocking Google Fonts -->
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
@@ -21,10 +22,10 @@
     </noscript>
 
     <!-- 4. Tailwind CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
         .bg-gradient-purple { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
         .bg-gradient-ocean { background: linear-gradient(135deg, #0f172a, #1e3a8a, #3b82f6); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
         .bg-gradient-emerald { background: linear-gradient(135deg, #022c22, #065f46, #10b981); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
@@ -36,21 +37,21 @@
         .bg-pastel-lavender { background: linear-gradient(135deg, #faf5ff, #f3e8ff, #e9d5ff); }
         .bg-pastel-skyblue { background: linear-gradient(135deg, #f0f9ff, #e0f2fe, #bae6fd); }
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-        .glass-card { background: rgba(255, 255, 255, 0.07); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        
         .product-glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); min-height: 96px; }
-        .product-glass:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 20px 40px -15px rgba(236, 72, 153, 0.4); }
+        
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .btn-shine { position: relative; overflow: hidden; }
+        
         .btn-shine::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(60deg, transparent, rgba(255,255,255,0.3), transparent); transform: rotate(45deg) translateX(-100%); transition: transform 0.7s ease-in-out; }
-        .btn-shine:hover::after { transform: rotate(45deg) translateX(100%); }
+        
         .avatar-glow { box-shadow: 0 0 25px rgba(236, 72, 153, 0.6), 0 0 50px rgba(139, 92, 246, 0.4); animation: pulseGlow 3s infinite alternate; }
         @keyframes pulseGlow { 0% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.5); } 100% { box-shadow: 0 0 35px rgba(139, 92, 246, 0.8), 0 0 15px rgba(255, 255, 255, 0.6); } }
     </style>
 </head>
 <body class="bg-gradient-purple min-h-screen text-gray-800 antialiased selection:bg-pink-500 selection:text-white">
     <main id="content" class="min-h-screen pb-16">
-        <div id="hero-bg" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
+        <div id="hero-bg" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900" fetchpriority="high">
             <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#0f0c29]"></div>
         </div>
         

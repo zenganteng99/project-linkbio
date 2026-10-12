@@ -12,6 +12,7 @@
     <!-- 2. Preconnect Bersih -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://down-id.img.susercontent.com">
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     
     <!-- 3. Non-blocking Google Fonts -->
@@ -21,7 +22,7 @@
     </noscript>
 
     <!-- 4. Tailwind CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
 
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -50,7 +51,7 @@
 </head>
 <body class="bg-gradient-purple min-h-screen text-gray-800 antialiased selection:bg-pink-500 selection:text-white">
     <main id="content" class="min-h-screen pb-16">
-        <div id="hero-bg" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
+        <div id="hero-bg" fetchpriority="high" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
             <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#0f0c29]"></div>
         </div>
         
