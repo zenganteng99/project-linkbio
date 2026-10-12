@@ -132,13 +132,7 @@
                     referrer: document.referrer || "direct"
                 });
 
-                fetch(TRACK_ENDPOINT, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: payload,
-                    keepalive: true,
-                    mode: "cors"
-                }).catch(function() {});
+                if (navigator.sendBeacon) { navigator.sendBeacon(TRACK_ENDPOINT, payload); } else { fetch(TRACK_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, mode: "no-cors" }).catch(function() {}); }
             } catch (err) {}
         }
         
