@@ -1379,13 +1379,35 @@ async function handleRegisterInfluencer(request, env) {
 // --- Handler: Dynamic Open Graph & Meta SEO Injection ---
 async function handlePageRender(request, env, ctx) {
   const url = new URL(request.url);
-  const segments = url.pathname.split("/").filter(Boolean);
   const pagesHost = new URL(PAGES_ORIGIN).host;
+
+  // =============================================================================
+  // STATIC HTML FILE ROUTING - Bypass store handler for static files
+  // =============================================================================
+  const STATIC_HTML_WHITELIST = [
+    '/privacy.html',
+    '/terms.html',
+    '/admin.html',
+    '/store.html',
+    '/404.html',
+    '/index.html'
+  ];
+
+  // Check if this is a static HTML file request - serve directly
+  if (url.pathname.endsWith('.html')) {
+    // Check if it's in our whitelist
+    if (STATIC_HTML_WHITELIST.includes(url.pathname)) {
+      return fetch(PAGES_ORIGIN + url.pathname, { headers: { "Host": pagesHost } });
+    }
+    // Unknown .html file - return 404
+    return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+  }
 
   if (url.pathname.includes(".") && !url.pathname.endsWith(".html")) {
     return fetch(PAGES_ORIGIN + url.pathname, { headers: { "Host": pagesHost } });
   }
 
+  const segments = url.pathname.split("/").filter(Boolean);
   const slug = segments.length > 0 ? segments[0] : "";
   const isSpecialPath = ["admin", "api"].includes(slug.toLowerCase());
 
