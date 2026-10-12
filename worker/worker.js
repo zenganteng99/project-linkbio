@@ -595,6 +595,63 @@ async function handleGapuraWebhook(request, env) {
       body: JSON.stringify({ client_slug: clientSlug, admin_pin: defaultPin, profile_name: customerName, max_products: targetMaxProducts })
     }).catch(() => {});
 
+    // ============================================
+    // COMMISSION CALCULATOR
+    // ============================================
+    const voucherCode = addInfo.voucher_code || addInfo.voucher || "";
+    const brokerSlug = addInfo.broker_slug || addInfo.referred_by || "";
+    const amountVal = Number(payload.amount?.value || addInfo.amount || 0);
+    
+    if (voucherCode && amountVal > 0) {
+      let commissionRecord = {
+        client_slug: clientSlug,
+        recipient_name: customerName,
+        amount: amountVal,
+        status: "pending",
+        created_at: new Date().toISOString()
+      };
+      
+      // Check if voucher belongs to an influencer
+      const infRes = await fetch(SUPABASE_URL + '/rest/v1/endorse_vouchers?voucher_code=eq.' + voucherCode + '&select=id,is_used', {
+        headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
+      });
+      const infData = await infRes?.json();
+      
+      if (infData && infData.length > 0) {
+        // Influencer sale - 30%
+        commissionRecord.voucher_code = voucherCode;
+        commissionRecord.commission_amount = Math.round(amountVal * 0.30);
+      } else if (brokerSlug) {
+        // Check if sub-influencer sale (has referred_by)
+        const subInfRes = await fetch(SUPABASE_URL + '/rest/v1/influencers?voucher_code=eq.' + voucherCode + '&select=id,referred_by', {
+          headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
+        });
+        const subInfData = await subInfRes?.json();
+        
+        if (subInfData && subInfData.length > 0 && subInfData[0].referred_by) {
+          // Sub-influencer sale - 20% for sub-inf, 10% passive for broker
+          commissionRecord.voucher_code = voucherCode;
+          commissionRecord.broker_slug = subInfData[0].referred_by;
+          commissionRecord.sub_influencer_commission = Math.round(amountVal * 0.20);
+          commissionRecord.broker_commission_amount = Math.round(amountVal * 0.10);
+        } else {
+          // Broker direct sale - 30%
+          commissionRecord.voucher_code = voucherCode;
+          commissionRecord.broker_slug = brokerSlug;
+          commissionRecord.broker_commission_amount = Math.round(amountVal * 0.30);
+        }
+      }
+      
+      // Insert commission record
+      if (commissionRecord.voucher_code) {
+        await fetch(SUPABASE_URL + '/rest/v1/transactions', {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": serviceKey, "Authorization": "Bearer " + serviceKey },
+          body: JSON.stringify(commissionRecord)
+        }).catch(e => console.error("Failed to record commission:", e));
+      }
+    }
+
     // Send activation email to customer
     const customerEmail = payload.customerEmail || payload.email || addInfo.customerEmail || addInfo.email || "";
     if (customerEmail && customerEmail.includes("@")) {
