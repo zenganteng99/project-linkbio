@@ -799,7 +799,7 @@
                     influencerData = data.influencer || null; brokerData = data.broker || null;
                     const maxLimit = settingsData.max_products || 10;
                     while (productsData.length < maxLimit) productsData.push({ id: null, title: "", price: "", image_url: "", affiliate_link: "", is_active: true, sort_order: productsData.length + 1 });
-                    populateForm(); loadAnalytics(slug); sessionStorage.setItem("admin_session", JSON.stringify({ slug, pin, authenticated: true }));
+                    populateForm(); loadAnalytics(slug); localStorage.setItem("admin_session", JSON.stringify({ slug, pin, authenticated: true }));
                     if (data.needs_security_update === true) { document.getElementById("force-security-modal").classList.remove("hidden"); } else { showSection("dashboard-section"); }
                 } else {
                     const a = incAttempts();
@@ -1772,7 +1772,7 @@ function populateForm() {
         // LOGIN ADMIN AMAN VIA RPC (SERVER-SIDE)
         
         function handleLogout() {
-            sessionStorage.removeItem("admin_session");
+            localStorage.removeItem("admin_session");
             currentSlug = "";
             currentAuthPin = "";
             settingsData = {};
@@ -1818,7 +1818,7 @@ function populateForm() {
         if (error) throw error;
         if (data && data.success) {
             currentAuthPin = password;
-            sessionStorage.setItem("admin_session", JSON.stringify({ slug: currentSlug, pin: password, authenticated: true }));
+            localStorage.setItem("admin_session", JSON.stringify({ slug: currentSlug, pin: password, authenticated: true }));
             document.getElementById("force-security-modal").classList.add("hidden");
             showToast("success", "Keamanan Diperbarui", "Akun berhasil ditingkatkan!");
 
@@ -1954,13 +1954,13 @@ async function handleSave() {
 
                 if (newPin) {
                     currentAuthPin = newPin;
-                    sessionStorage.setItem("admin_session", JSON.stringify({ slug: currentSlug, pin: newPin, authenticated: true }));
+                    localStorage.setItem("admin_session", JSON.stringify({ slug: currentSlug, pin: newPin, authenticated: true }));
                 }
 
                 showToast("success", "Berhasil!", "Perubahan telah disimpan dengan aman");
                 // Clear Edge Cache so changes appear instantly on store page
                 await fetch(`${WORKER_ORIGIN}/api/clear-cache?slug=${encodeURIComponent(currentSlug)}`, { method: "POST" }).catch(() => {});
-                sessionStorage.removeItem('bio_cache_' + currentSlug);
+                localStorage.removeItem('bio_cache_' + currentSlug);
                 document.getElementById("new_pin").value = "";
                 document.getElementById("confirm_pin").value = "";
 
@@ -2006,7 +2006,7 @@ async function handleSave() {
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
-            const session = sessionStorage.getItem("admin_session");
+            const session = localStorage.getItem("admin_session");
             if (session) {
                 try {
                     const { slug, pin, authenticated } = JSON.parse(session);
@@ -2016,7 +2016,7 @@ async function handleSave() {
                         handleLogin();
                     }
                 } catch (e) {
-                    sessionStorage.removeItem("admin_session");
+                    localStorage.removeItem("admin_session");
                 }
             }
         });
