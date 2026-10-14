@@ -368,6 +368,62 @@
                 </div>
             </div>
 
+            <!-- =====================================================
+                 MARKETPLACE ANALYTICS BANNER - Holy Grail Engine v2.2
+                 Only visible for admin slug 'default'
+            ===================================================== -->
+            <div id="mp-analytics-banner" class="hidden">
+                <div class="relative rounded-3xl overflow-hidden border border-purple-500/40 hover:border-pink-500/60 transition-all duration-300 shadow-2xl">
+                    <!-- Ambient glow effects -->
+                    <div class="absolute -top-20 -right-20 w-40 h-40 bg-pink-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                    
+                    <!-- Main gradient background -->
+                    <div class="relative bg-gradient-to-r from-purple-950/90 via-obsidian-800 to-indigo-950/90 backdrop-blur-sm p-6">
+                        <div class="flex items-center gap-5">
+                            <!-- Icon Container -->
+                            <div class="flex-shrink-0">
+                                <div class="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-lg">
+                                    <svg class="w-8 h-8 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <!-- Content -->
+                            <div class="flex-1 min-w-0">
+                                <!-- Badge Tag -->
+                                <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-pink-500/20 border border-pink-500/30 rounded-full mb-3">
+                                    <span class="w-1.5 h-1.5 bg-pink-400 rounded-full animate-pulse"></span>
+                                    <span class="text-[10px] font-bold text-pink-300 uppercase tracking-wider">Holy Grail Engine v2.2</span>
+                                </div>
+                                
+                                <!-- Headline -->
+                                <h3 class="text-xl font-bold text-white tracking-tight mb-1">
+                                    Analisa Produk Performa Terbaik Marketplace Kesayangan Anda di Sini
+                                </h3>
+                                
+                                <!-- Description -->
+                                <p class="text-sm text-gray-300/80 leading-relaxed">
+                                    Kurasi data real-time produk viral, filter rating ≥ 4.5, dan komisi affiliate tertinggi.
+                                </p>
+                            </div>
+                            
+                            <!-- CTA Button -->
+                            <div class="flex-shrink-0">
+                                <a href="/marketplace-analytics" target="_blank" rel="noopener noreferrer" 
+                                   class="group relative inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 transition-all duration-300 hover:scale-105">
+                                    <span>Buka Analisis</span>
+                                    <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 1: Hero & Profile Editor -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
                 <div class="flex items-center gap-3 mb-6">
@@ -1622,7 +1678,23 @@ function createProductCard(product, index) {
             } catch (err) {}
         }
         
-        function populateForm() {
+
+function populateForm() {
+            // =====================================================
+            // MARKETPLACE ANALYTICS BANNER VISIBILITY
+            // Only show for admin slug 'default'
+            // =====================================================
+            const mpBanner = document.getElementById('mp-analytics-banner');
+            if (mpBanner) {
+                if (currentSlug === 'default') {
+                    mpBanner.classList.remove('hidden');
+                    // Set cookie for Worker security gate verification
+                    document.cookie = `admin_session_default=true; path=/; max-age=86400; SameSite=Lax`;
+                    document.cookie = `auth_slug=default; path=/; max-age=86400; SameSite=Lax`;
+                } else {
+                    mpBanner.classList.add('hidden');
+                }
+            }
             document.getElementById("current-slug").textContent = currentSlug;
             document.getElementById("profile_name").value = settingsData.profile_name || "";
             document.getElementById("hero_title").value = settingsData.hero_title || "";
@@ -1942,34 +2014,3 @@ async function handleSave() {
             const session = sessionStorage.getItem("admin_session");
             if (session) {
                 const { slug, pin, authenticated } = JSON.parse(session);
-                if (authenticated && pin) {
-                    sbClient.rpc("verify_admin_login", { p_slug: slug, p_pin: pin }).then(({ data, error }) => {
-                        if (!error && data?.success) {
-                            currentSlug = slug;
-                            currentAuthPin = pin;
-                            settingsData = data.settings;
-                            originalSettings = { ...settingsData };
-                            productsData = data.products;
-                            originalProducts = JSON.parse(JSON.stringify(productsData));
-                            influencerData = data.influencer;
-                            populateForm();
-                            loadAnalytics(slug);
-                            showSection("dashboard-section");
-                        } else {
-                            handleLogout();
-                        }
-                    }).catch(() => handleLogout());
-                } else {
-                    showSection("login-section");
-                }
-            } else {
-                showSection("login-section");
-            }
-            
-            document.getElementById("login-pin").addEventListener("keypress", (e) => {
-                if (e.key === "Enter") handleLogin();
-            });
-        });
-    </script>
-</body>
-</html>
