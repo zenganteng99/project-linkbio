@@ -31,7 +31,7 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Google Fonts Plus Jakarta Sans -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -43,7 +43,6 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com" defer></script>
     <script type="text/tailwindcss">
-    
         tailwind.config = {
             theme: {
                 extend: {
@@ -64,6 +63,33 @@
     </script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #060913; color: #f8fafc; overflow-x: hidden; }
+        
+        /* Proteksi anti flash teks polos */
+        .initial-hidden { opacity: 0; transition: opacity 0.5s ease-in-out; }
+        .initial-loaded { opacity: 1; }
+
+        /* Tirai Elegan Layar Awal */
+        #page-loader {
+            position: fixed;
+            inset: 0;
+            background-color: #060913;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        .luxury-spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(168, 85, 247, 0.2);
+            border-top-color: #c084fc;
+            border-radius: 50%;
+            animation: spinCurtain 0.8s linear infinite;
+        }
+        @keyframes spinCurtain { to { transform: rotate(360deg); } }
+
         .hero-glow { background: radial-gradient(circle at 50% 20%, rgba(139, 92, 246, 0.25) 0%, rgba(236, 72, 153, 0.1) 40%, transparent 70%); }
         .glow-neon { box-shadow: 0 0 60px -10px rgba(139, 92, 246, 0.45); }
         .text-gradient { background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 40%, #f59e0b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -77,7 +103,13 @@
         .animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
     </style>
 </head>
-<body class="bg-obsidian-900 min-h-screen selection:bg-purple-500 selection:text-white pb-20">
+<body id="bodyRoot" class="bg-obsidian-900 min-h-screen selection:bg-purple-500 selection:text-white pb-20 initial-hidden">
+
+    <!-- Curtain Layar Awal Eksklusif (Menutup Teks Mentah) -->
+    <div id="page-loader">
+        <div class="luxury-spinner mb-4"></div>
+        <div class="text-white font-extrabold tracking-widest text-xs uppercase">CUSTOM LINK <span class="text-purple-400">ELITE</span></div>
+    </div>
 
     <!-- Top Sticky Promotion Banner -->
     <header class="bg-gradient-to-r from-purple-700 via-pink-600 to-amber-500 text-white text-xs md:text-sm font-extrabold py-2.5 px-4 text-center sticky top-0 z-50 shadow-2xl tracking-wide flex items-center justify-center gap-2">
@@ -564,10 +596,40 @@
         </div>
     </div>
 
+    <!-- Floating Sticky CTA Bar -->
+    <div class="fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-purple-500/30 p-3 px-6 flex items-center justify-between shadow-2xl">
+        <div>
+            <div class="text-[10px] text-gray-400 uppercase tracking-wider">Promo Sekali Bayar</div>
+            <div class="text-sm font-black text-pink-400">Mulai Rp 285rb <span class="text-[10px] text-gray-400 font-normal">Selamanya</span></div>
+        </div>
+        <a href="#pricing" class="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg glow-neon btn-shine">
+            PILIH PAKET 🚀
+        </a>
+    </div>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script>
         AOS.init({ once: true, offset: 80, duration: 800 });
+
+        // Handler Mulus Tirai Preloader: Menghilangkan teks telanjang di kedipan pertama
+        window.addEventListener('DOMContentLoaded', () => {
+            const loader = document.getElementById('page-loader');
+            const bodyRoot = document.getElementById('bodyRoot');
+            
+            setTimeout(() => {
+                if (loader) {
+                    loader.style.opacity = '0';
+                    loader.style.visibility = 'hidden';
+                }
+                if (bodyRoot) {
+                    bodyRoot.classList.add('initial-loaded');
+                }
+                setTimeout(() => {
+                    if (loader) loader.remove();
+                }, 400);
+            }, 150);
+        });
 
         const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
             ? window.location.origin 
@@ -796,6 +858,8 @@
             }
         }
     </script>
+</body>
+</html>
 
     <!-- Floating Sticky CTA Bar -->
     <div class="fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-purple-500/30 p-3 px-6 flex items-center justify-between shadow-2xl">
