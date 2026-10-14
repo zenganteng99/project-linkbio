@@ -1861,12 +1861,25 @@ export default {
         return redirectToAuthRequired(request);
       }
       const pagesHost = new URL(PAGES_ORIGIN).host;
-      // Static file request (js, css, images, json)
-      if (url.pathname.includes(".")) {
-        return fetch(PAGES_ORIGIN + url.pathname, { headers: { "Host": pagesHost } });
+      const targetPath = url.pathname.includes(".") ? url.pathname : "/marketplace-analytics/index.html";
+      const targetUrl = PAGES_ORIGIN + targetPath;
+      try {
+        const response = await fetch(targetUrl, {
+          headers: { 
+            "Host": pagesHost,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          }
+        });
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set("Cache-Control", "public, max-age=300");
+        return new Response(response.body, {
+          status: response.status,
+          headers: newHeaders
+        });
+      } catch (err) {
+        console.error('Marketplace fetch error:', err);
+        return jsonResponse({ error: "Failed to fetch from Pages" }, 502, request);
       }
-      // SPA navigation / subpath - serve index.html portal
-      return fetch(PAGES_ORIGIN + "/marketplace-analytics/index.html", { headers: { "Host": pagesHost } });
     }
     
     // Holy Grail API endpoints - Curated Products from D1
