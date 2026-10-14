@@ -9,23 +9,30 @@
     <meta name="description" content="Katalog produk resmi, rekomendasi belanja viral, dan link diskon eksklusif.">
     <meta property="og:type" content="website">
 
-    <!-- 2. Preconnect Bersih -->
+    <!-- 2. Preconnect Efisien -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://down-id.img.susercontent.com">
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     
-    <!-- 3. Non-blocking Google Fonts -->
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-    </noscript>
+    <!-- 3. Google Fonts Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- 4. Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com" defer></script>
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        /* CRITICAL INLINED CSS: Mengunci Geometri & Menjamin Estetika Sejak Frame 0 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: #0f0c29;
+            color: #ffffff;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
         .bg-gradient-purple { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
         .bg-gradient-ocean { background: linear-gradient(135deg, #0f172a, #1e3a8a, #3b82f6); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
         .bg-gradient-emerald { background: linear-gradient(135deg, #022c22, #065f46, #10b981); background-size: 400% 400%; animation: gradientBG 15s ease infinite; }
@@ -37,56 +44,185 @@
         .bg-pastel-lavender { background: linear-gradient(135deg, #faf5ff, #f3e8ff, #e9d5ff); }
         .bg-pastel-skyblue { background: linear-gradient(135deg, #f0f9ff, #e0f2fe, #bae6fd); }
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* Kunci Banner Atas */
+        #hero-bg {
+            height: 18rem;
+            width: 100%;
+            background-color: #1e1b4b;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+
+        /* Kunci Lebar Kontainer Utama */
+        .store-container {
+            width: 100%;
+            max-width: 28rem; /* 448px */
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
+            margin-top: -9rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            box-sizing: border-box;
+        }
+
+        /* Kunci Ukuran Avatar Profil Mutlak */
+        .avatar-wrap {
+            width: 8rem; /* 128px */
+            height: 8rem;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 1rem;
+            padding: 4px;
+            border-radius: 9999px;
+            box-sizing: border-box;
+            background: linear-gradient(135deg, #ec4899, #8b5cf6, #6366f1);
+            position: relative;
+        }
+        #profile-image {
+            width: 100%;
+            height: 100%;
+            border-radius: 9999px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            background-color: #111827;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        /* Kunci Kotak Pencarian */
+        .search-box-input {
+            width: 100%;
+            padding: 0.875rem 2.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            color: #1f2937;
+            box-sizing: border-box;
+            outline: none;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Kunci Paten Ukuran Ikon SVG Agar Tidak Membesar */
+        .search-icon-fixed {
+            width: 16px !important;
+            height: 16px !important;
+            max-width: 16px !important;
+            max-height: 16px !important;
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #9ca3af;
+        }
+
+        /* Pastikan Tombol Clear Search Tidak Tampil Menggantung */
+        #clear-search-btn.hidden,
+        .hidden {
+            display: none !important;
+        }
+
         .glass-card { background: rgba(255, 255, 255, 0.07); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
-        .product-glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); min-height: 96px; }
-        .product-glass:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 20px 40px -15px rgba(236, 72, 153, 0.4); }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        .product-glass { 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.5); 
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+            min-height: 96px; 
+            box-sizing: border-box;
+        }
+        .product-glass:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 16px 36px -10px rgba(236, 72, 153, 0.35); }
+        
+        .img-fixed-box {
+            width: 64px;
+            height: 64px;
+            aspect-ratio: 1 / 1;
+            flex-shrink: 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            position: relative;
+            background-color: #f1f5f9;
+        }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
         .btn-shine { position: relative; overflow: hidden; }
-        .btn-shine::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(60deg, transparent, rgba(255,255,255,0.3), transparent); transform: rotate(45deg) translateX(-100%); transition: transform 0.7s ease-in-out; }
+        .btn-shine::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(60deg, transparent, rgba(255,255,255,0.35), transparent); transform: rotate(45deg) translateX(-100%); transition: transform 0.7s ease-in-out; }
         .btn-shine:hover::after { transform: rotate(45deg) translateX(100%); }
+
         .avatar-glow { box-shadow: 0 0 25px rgba(236, 72, 153, 0.6), 0 0 50px rgba(139, 92, 246, 0.4); animation: pulseGlow 3s infinite alternate; }
         @keyframes pulseGlow { 0% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.5); } 100% { box-shadow: 0 0 35px rgba(139, 92, 246, 0.8), 0 0 15px rgba(255, 255, 255, 0.6); } }
+
+        @keyframes shimmerPulse { 0% { opacity: 0.3; } 50% { opacity: 0.6; } 100% { opacity: 0.3; } }
+        .skeleton-item {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            height: 96px;
+            animation: shimmerPulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body class="bg-gradient-purple min-h-screen text-gray-800 antialiased selection:bg-pink-500 selection:text-white">
     <main id="content" class="min-h-screen pb-16">
-        <div id="hero-bg" fetchpriority="high" class="h-72 bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
+        <!-- HEADER COVER -->
+        <div id="hero-bg" fetchpriority="high" class="bg-cover bg-center relative bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900">
             <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#0f0c29]"></div>
         </div>
         
-        <div class="relative -mt-36 px-4 max-w-md mx-auto animate-fade-in">
-            <div class="text-center mb-8 text-white">
-                <div class="relative mx-auto w-32 h-32 mb-4 p-1 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 avatar-glow">
-                    <div id="profile-image" class="w-full h-full rounded-full border-2 border-white/80 bg-gray-900 bg-cover bg-center flex items-center justify-center text-3xl overflow-hidden">
+        <!-- MAIN STORE CONTAINER -->
+        <div class="store-container animate-fade-in">
+            <!-- PROFIL SECTION -->
+            <div class="text-center mb-6 text-white min-h-[170px]">
+                <div class="avatar-wrap avatar-glow">
+                    <div id="profile-image">
                         👑
                     </div>
                 </div>
-                <h1 id="profile-name" class="text-2xl font-extrabold tracking-tight drop-shadow-md"></h1>
-                <p id="hero-title" class="text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90"></p>
-                <p id="hero-subtitle" class="text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light"></p>
+                <h1 id="profile-name" class="text-2xl font-extrabold tracking-tight drop-shadow-md min-h-[32px]"></h1>
+                <p id="hero-title" class="text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90 min-h-[20px]"></p>
+                <p id="hero-subtitle" class="text-sm text-gray-300 mt-1 px-6 leading-relaxed font-light min-h-[20px]"></p>
             </div>
 
-            <!-- FITUR LIVE SELLING: BILAH PENCARIAN NOMOR ETALASE & PRODUK -->
+            <!-- BILAH PENCARIAN LIVE SELLING -->
             <div class="mb-5 relative" id="search-bar-wrapper">
                 <div class="relative">
                     <input type="text" id="product-search" placeholder="🔍 Cari etalase #nomor atau nama produk..." 
-                        class="w-full pl-10 pr-10 py-3.5 bg-white/95 backdrop-blur-md border border-white/50 rounded-2xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 shadow-xl transition-all">
-                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    </div>
-                    <button id="clear-search-btn" onclick="clearSearch()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 hidden">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        class="search-box-input focus:ring-2 focus:ring-pink-500 transition-all">
+                    
+                    <svg class="search-icon-fixed" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    
+                    <button id="clear-search-btn" onclick="clearSearch()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 hidden" aria-label="Hapus Pencarian">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
                     </button>
                 </div>
-                <div class="flex items-center justify-between px-1.5 mt-1.5">
+                <div class="flex items-center justify-between px-1.5 mt-2 min-h-[18px]">
                     <p id="search-result-count" class="text-[11px] text-white/70 font-medium hidden"></p>
                     <span class="text-[10px] text-white/50 ml-auto" id="search-hint">💡 Ketik nomor untuk spill etalase</span>
                 </div>
             </div>
             
-            <!-- DAFTAR KARTU PRODUK BERNOMOR -->
-            <div id="products-container" class="space-y-4 min-h-[400px]"></div>
+            <!-- WADAH PRODUK -->
+            <div id="products-container" class="space-y-4 min-h-[420px]">
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+            </div>
 
             <div id="social-container" class="mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap"></div>
         </div>
@@ -132,7 +268,11 @@
                     referrer: document.referrer || "direct"
                 });
 
-                if (navigator.sendBeacon) { navigator.sendBeacon(TRACK_ENDPOINT, payload); } else { fetch(TRACK_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, mode: "no-cors" }).catch(function() {}); }
+                if (navigator.sendBeacon) { 
+                    navigator.sendBeacon(TRACK_ENDPOINT, payload); 
+                } else { 
+                    fetch(TRACK_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, mode: "no-cors" }).catch(function() {}); 
+                }
             } catch (err) {}
         }
         
@@ -253,17 +393,17 @@
                 if (s.hero_title) document.getElementById("hero-title").textContent = s.hero_title;
                 if (s.hero_subtitle) document.getElementById("hero-subtitle").textContent = s.hero_subtitle;
                 if (s.background_url) {
-                    document.getElementById("hero-bg").style.backgroundImage = `url('${s.getImageUrlWithCacheBust404(s.background_url)}')`;
+                    document.getElementById("hero-bg").style.backgroundImage = `url('${getImageUrlWithCacheBust(s.background_url)}')`;
                 }
                 if (s.profile_image_url) {
                     const pImg = document.getElementById("profile-image");
-                    pImg.style.backgroundImage = `url('${getImageUrlWithCacheBust404(s.profile_image_url)}')`;
+                    pImg.style.backgroundImage = `url('${getImageUrlWithCacheBust(s.profile_image_url)}')`;
                     pImg.style.backgroundSize = "cover";
                     pImg.style.backgroundPosition = "center";
                     pImg.innerHTML = "";
                 }
                 const bodyEl = document.body;
-                const profileInfoEl = document.querySelector('.text-center.mb-8');
+                const profileInfoEl = document.querySelector('.text-center.mb-6');
                 const footerCredit = document.getElementById("footer-credit");
                 const footerBrand = document.getElementById("footer-brand");
                 const socialContainer = document.getElementById("social-container");
@@ -275,20 +415,24 @@
                 bodyEl.classList.add('bg-' + theme);
 
                 if (theme.startsWith('pastel-')) {
-                    profileInfoEl.classList.remove('text-white');
-                    profileInfoEl.classList.add('text-gray-900');
-                    document.getElementById("hero-title").className = "text-sm font-bold text-pink-600 mt-1 tracking-wide uppercase";
-                    document.getElementById("hero-subtitle").className = "text-sm text-gray-700 mt-2 px-6 leading-relaxed font-normal";
+                    if (profileInfoEl) {
+                        profileInfoEl.classList.remove('text-white');
+                        profileInfoEl.classList.add('text-gray-900');
+                    }
+                    document.getElementById("hero-title").className = "text-sm font-bold text-pink-600 mt-1 tracking-wide uppercase min-h-[20px]";
+                    document.getElementById("hero-subtitle").className = "text-sm text-gray-700 mt-1 px-6 leading-relaxed font-normal min-h-[20px]";
                     socialContainer.className = "mt-10 pt-6 border-t border-gray-900/10 flex justify-center gap-4 flex-wrap";
                     footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-gray-600";
                     footerBrand.className = "font-semibold text-gray-900";
                     if (searchCountEl) searchCountEl.className = "text-[11px] text-gray-600 font-medium hidden";
                     if (searchHintEl) searchHintEl.className = "text-[10px] text-gray-500 ml-auto";
                 } else {
-                    profileInfoEl.classList.remove('text-gray-900');
-                    profileInfoEl.classList.add('text-white');
-                    document.getElementById("hero-title").className = "text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90";
-                    document.getElementById("hero-subtitle").className = "text-sm text-gray-300 mt-2 px-6 leading-relaxed font-light";
+                    if (profileInfoEl) {
+                        profileInfoEl.classList.remove('text-gray-900');
+                        profileInfoEl.classList.add('text-white');
+                    }
+                    document.getElementById("hero-title").className = "text-sm font-semibold text-pink-300 mt-1 tracking-wide uppercase opacity-90 min-h-[20px]";
+                    document.getElementById("hero-subtitle").className = "text-sm text-gray-300 mt-1 px-6 leading-relaxed font-light min-h-[20px]";
                     socialContainer.className = "mt-10 pt-6 border-t border-white/10 flex justify-center gap-4 flex-wrap";
                     footerCredit.className = "text-center mt-12 text-xs tracking-wider uppercase font-medium text-white/40";
                     footerBrand.className = "font-semibold text-white/70";
@@ -321,7 +465,6 @@
             container.classList.toggle('hidden', html === '');
         }
         
-        // RENDER KARTU PRODUK BERNOMOR LENGKAP (#1, #2, dst.)
         function renderProducts(ps) {
             const c = document.getElementById("products-container");
             if (!ps || !ps.length) { 
@@ -339,14 +482,13 @@
             c.innerHTML = ps.map((p) => {
                 const num = p._itemNumber;
                 
-                // Top 3 = Gold/Pink Gradient, Slot 4+ = Dark Obsidian Glass Badge
                 const badge = num <= 3 
                     ? `<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #${num}</div>`
                     : `<div class="absolute -top-2.5 -left-2.5 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-10 border border-white/30 tracking-wider">#${num}</div>`;
                 
                 const imgHtml = p.image_url 
-                    ? `<img src="${getImageUrlWithCacheBust404(p.image_url)}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner">🛍️</div>`
-                    : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner">🛍️</div>`;
+                    ? `<img src="${getImageUrlWithCacheBust(p.image_url)}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" style="aspect-ratio: 1/1;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner" style="aspect-ratio: 1/1;">🛍️</div>`
+                    : `<div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shadow-inner" style="aspect-ratio: 1/1;">🛍️</div>`;
 
                 const productIdentifier = p.id || p.title || ('prod-' + num);
                 const safeTitle = (p.title || '').replace(/"/g, '&quot;');
@@ -355,13 +497,13 @@
                 return `<div class="product-glass rounded-2xl p-3.5 shadow-xl relative overflow-hidden group">
                     <a href="${p.affiliate_link || '#'}" target="_blank" class="block" data-track-product="${productIdentifier}" data-product-title="${safeTitle}" data-product-price="${rawPrice}">
                         <div class="flex gap-4 items-center">
-                            <div class="relative flex-shrink-0 w-16 h-16">${imgHtml}${badge}</div>
+                            <div class="img-fixed-box">${imgHtml}${badge}</div>
                             <div class="flex-1 min-w-0 pr-1">
                                 <h3 class="font-bold text-gray-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-pink-600 transition-colors">${p.title || ''}</h3>
                                 <p class="text-pink-600 font-extrabold text-sm sm:text-base mt-0.5">${fmt(p.price)}</p>
                                 <div class="mt-2.5 inline-flex items-center gap-1.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-pink-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md btn-shine transition-all">
                                     <span>Beli Sekarang</span>
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                    <svg width="14" height="14" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                                 </div>
                             </div>
                         </div>
@@ -370,7 +512,6 @@
             }).join("");
         }
 
-        // SISTEM PENCARIAN REAL-TIME
         function setupSearch() {
             const searchInput = document.getElementById("product-search");
             const clearBtn = document.getElementById("clear-search-btn");
@@ -390,9 +531,7 @@
                 const cleanNum = query.replace(/[^0-9]/g, "");
 
                 const filtered = globalProducts.filter(p => {
-                    // 1. Cocokkan nomor etalase (ketik '5' atau '#5' akan menampilkan produk #5)
                     const matchNum = cleanNum && String(p._itemNumber) === cleanNum;
-                    // 2. Cocokkan kata kunci di judul produk
                     const matchTitle = (p.title || "").toLowerCase().includes(query);
                     return matchNum || matchTitle;
                 });
@@ -411,7 +550,7 @@
                 searchInput.focus();
             }
         }
-        
+
         async function init() {
             const slug = getSlug();
 
@@ -425,8 +564,8 @@
             const cacheKey = `bio_cache_${slug}`;
             await loadAndRender(slug, cacheKey);
         }
+
         function prepareAndRenderProducts(products) {
-            // Berikan nomor urut permanen ke setiap produk
             globalProducts = (products || []).map((p, idx) => ({
                 ...p,
                 _itemNumber: idx + 1
@@ -434,36 +573,28 @@
             renderProducts(globalProducts);
         }
 
-        // Helper for image cache busting
-        let currentCacheTimestamp404 = 0;
-        function getImageUrlWithCacheBust404(imageUrl) {
+        let currentCacheTimestamp = 0;
+        function getImageUrlWithCacheBust(imageUrl) {
             if (!imageUrl) return "";
             const separator = imageUrl.includes("?") ? "&" : "?";
-            return imageUrl + separator + "_cb=" + currentCacheTimestamp404;
+            return imageUrl + separator + "_cb=" + currentCacheTimestamp;
         }
 
         async function loadAndRender(slug, cacheKey) {
             const data = await fetchStoreData(slug);
             const settings = data.settings;
             const products = data.products || [];
+            
             try { sessionStorage.setItem(cacheKey, JSON.stringify({ settings, products })); } catch (e) {}
+            
             prepareAndRenderProducts(products);
             renderHero(settings);
-            // Set timestamp for image cache busting
+
             if (data.edgeInfo && data.edgeInfo.cacheTimestamp) {
-                currentCacheTimestamp404 = data.edgeInfo.cacheTimestamp;
+                currentCacheTimestamp = data.edgeInfo.cacheTimestamp;
             }
         }
 
-        async function backgroundSync(slug, cacheKey) {
-            try {
-                const data = await fetchStoreData(slug);
-                sessionStorage.setItem(cacheKey, JSON.stringify({ settings: data.settings, products: data.products || [] }));
-                prepareAndRenderProducts(data.products || []);
-                if (data.settings) initTrackingPixels(data.settings);
-            } catch (e) {}
-        }
-        
         document.addEventListener("DOMContentLoaded", init);
 
         document.addEventListener("click", (e) => {
