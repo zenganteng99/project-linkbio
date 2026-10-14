@@ -1769,6 +1769,161 @@ async function handleVerifyPasswordResetCode(request, env) {
   }
 }
 
+// --- Marketplace Analytics Reverse Proxy Engine ---
+const MARKETPLACE_ANALYTICS_TARGET = 'https://holy-grail-staging.pages.dev';
+const ADMIN_SLUG_MARKETPLACE = 'default';
+
+// Static asset extensions to bypass auth
+const STATIC_ASSET_PATTERNS = [
+  '/assets/', '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff2', '.woff', '.ttf', '.eot', '.webp', '.avif'
+];
+
+function isStaticAsset(pathname) {
+  if (!pathname) return false;
+  const lower = pathname.toLowerCase();
+  return STATIC_ASSET_PATTERNS.some(pattern => 
+    pattern.startsWith('/') ? lower.includes(pattern) : lower.endsWith(pattern)
+  );
+}
+
+function verifyAdminSession(request) {
+  const cookieHeader = request.headers.get('Cookie') || '';
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return [k, v.join('=')];
+    })
+  );
+  
+  if (cookies['admin_session_default'] === 'true' || 
+      cookies['admin_session_default'] === 'active' ||
+      cookies['auth_slug'] === ADMIN_SLUG_MARKETPLACE ||
+      cookies['admin_auth'] === ADMIN_SLUG_MARKETPLACE) {
+    return true;
+  }
+  
+  const authHeader = request.headers.get('Authorization') || '';
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    if (token && token.length > 10) return true;
+  }
+  
+  return false;
+}
+
+function redirectToAuthRequired(request) {
+  const url = new URL(request.url);
+  const redirectUrl = `/admin?slug=${ADMIN_SLUG_MARKETPLACE}&auth_required=1&redirect=${encodeURIComponent(url.pathname)}`;
+  return Response.redirect(redirectUrl, 302);
+}
+
+async function handleMarketplaceAnalytics(request, env, ctx) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  
+  // Static asset bypass
+  if (isStaticAsset(pathname)) {
+    const targetPath = pathname.replace('/marketplace-analytics', '') || '/';
+    const targetUrl = MARKETPLACE_ANALYTICS_TARGET + targetPath + url.search;
+    
+    const headers = new Headers();
+    request.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'host') {
+        headers.set(key, value);
+      }
+    });
+    headers.set('Host', 'holy-grail-staging.pages.dev');
+    headers.set('X-Forwarded-Host', url.hostname);
+    headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
+    
+    try {
+      const response = await fetch(targetUrl, {
+        method: request.method,
+        headers: headers,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined
+      });
+      
+      const responseHeaders = new Headers();
+      response.headers.forEach((value, key) => {
+        if (key.toLowerCase() === 'location') {
+          if (value.includes('holy-grail-staging.pages.dev')) {
+            value = value.replace('https://holy-grail-staging.pages.dev', 'https://customlink.id/marketplace-analytics');
+          }
+        }
+        responseHeaders.set(key, value);
+      });
+      
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders
+      });
+    } catch (err) {
+      console.error('Marketplace proxy static error:', err);
+      return new Response('Proxy error', { status: 502 });
+    }
+  }
+  
+  // Security gate for non-static requests
+  if (!verifyAdminSession(request)) {
+    const slugParam = url.searchParams.get('slug');
+    if (slugParam !== ADMIN_SLUG_MARKETPLACE) {
+      return redirectToAuthRequired(request);
+    }
+  }
+  
+  // Reverse proxy: map path
+  let targetPath = pathname.replace('/marketplace-analytics', '') || '/';
+  const targetUrl = MARKETPLACE_ANALYTICS_TARGET + targetPath + url.search;
+  
+  const headers = new Headers();
+  request.headers.forEach((value, key) => {
+    if (key.toLowerCase() !== 'host') {
+      headers.set(key, value);
+    }
+  });
+  headers.set('Host', 'holy-grail-staging.pages.dev');
+  headers.set('X-Forwarded-Host', url.hostname);
+  headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
+  headers.set('X-Real-IP', request.headers.get('CF-Connecting-IP') || '');
+  
+  try {
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers: headers,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      redirect: 'manual'
+    });
+    
+    const responseHeaders = new Headers();
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() === 'location') {
+        if (value.includes('holy-grail-staging.pages.dev')) {
+          value = value.replace('https://holy-grail-staging.pages.dev', 'https://customlink.id/marketplace-analytics');
+        }
+      }
+      responseHeaders.set(key, value);
+    });
+    
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (location) {
+        return Response.redirect(location, response.status);
+      }
+    }
+    
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders
+    });
+  } catch (err) {
+    console.error('Marketplace proxy error:', err);
+    return new Response('Proxy error', { status: 502 });
+  }
+}
+
+
 // --- Router Utama ---
 export default {
   async fetch(request, env, ctx) {
@@ -1776,6 +1931,14 @@ export default {
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: getCorsHeaders(request) });
     if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 });
+
+    // ============================================================
+    // MARKETPLACE ANALYTICS ROUTE - Highest Priority (Bypass Slug Check)
+    // Placed BEFORE slug parser to prevent 'marketplace-analytics' being treated as store slug
+    // ============================================================
+    if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/")) {
+      return handleMarketplaceAnalytics(request, env, ctx);
+    }
 
     if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
     if (url.pathname === "/api/proxy" && request.method === "GET") return handleProxy(request);
