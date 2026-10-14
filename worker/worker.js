@@ -1645,7 +1645,8 @@ function getPasswordResetEmailTemplate(code) {
   </div>
   <p style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">© CustomLink</p>
 </body>
-</html>
+</html>`;
+}
 
 function getActivationEmailTemplate(clientName, clientSlug, adminPin, packageName) {
   const adminUrl = 'https://customlink.id/admin.html?slug=' + encodeURIComponent(clientSlug);
@@ -1679,7 +1680,6 @@ function getActivationEmailTemplate(clientName, clientSlug, adminPin, packageNam
 '  <p style="text-align: center; color: #999; font-size: 12px; margin-top: 40px;">© CustomLink Elite. Sekali bayar aktif seumur hidup.</p>' +
 '</body>' +
 '</html>';
-}`;
 }
 
 async function handleSendPasswordResetEmail(request, env) {
@@ -1853,23 +1853,20 @@ export default {
     if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 });
 
     // ============================================================
-    // MARKETPLACE ANALYTICS ROUTE - Highest Priority (Bypass Slug Check)
-    // Placed BEFORE slug parser to prevent 'marketplace-analytics' being treated as store slug
+    // MARKETPLACE ANALYTICS ROUTE - SPA Fallback Handler
+    // Serves local static files from Pages with security gate
     // ============================================================
-    const isMarketplaceAsset = url.pathname.startsWith('/assets/') && (request.headers.get('Referer') || '').includes('/marketplace-analytics');
-    // Marketplace Analytics: serve local static files with security gate
     if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/")) {
       if (!verifyAdminSession(request)) {
         return redirectToAuthRequired(request);
       }
-      // Let Cloudflare Pages handle the static files
-      return env.ASSETS ? new Response(null, { status: 404 }) : handlePageRender(request, env, ctx);
-    }
-    // Assets under /marketplace-analytics/assets/ are served via /assets/ route
-    if (url.pathname.startsWith("/assets/") && (request.headers.get('Referer') || '').includes('/marketplace-analytics')) {
-      if (!verifyAdminSession(request)) {
-        return redirectToAuthRequired(request);
+      const pagesHost = new URL(PAGES_ORIGIN).host;
+      // Static file request (js, css, images, json)
+      if (url.pathname.includes(".")) {
+        return fetch(PAGES_ORIGIN + url.pathname, { headers: { "Host": pagesHost } });
       }
+      // SPA navigation / subpath - serve index.html portal
+      return fetch(PAGES_ORIGIN + "/marketplace-analytics/index.html", { headers: { "Host": pagesHost } });
     }
     
     // Holy Grail API endpoints - Curated Products from D1
