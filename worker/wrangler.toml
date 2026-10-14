@@ -45,3 +45,11 @@ PRIMARY_DOMAIN = "https://customlink-webhook.modernshopp.workers.dev"
 binding = "DB"
 database_name = "customlink-analytics"
 database_id = "9e1403da-dcac-4713-820a-1f78c63ff43d"
+
+# --------------------------------------------------------------------------------
+# CLOUDFLARE D1 - Holy Grail Curated Products Database
+# --------------------------------------------------------------------------------
+[[d1_databases]]
+binding = "HOLY_DB"
+database_name = "affiliate-tracker-db"
+database_id = "41e5ed34-da20-45be-bd31-0584261cdef5"

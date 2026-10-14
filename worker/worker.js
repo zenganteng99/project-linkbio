@@ -1769,22 +1769,46 @@ async function handleVerifyPasswordResetCode(request, env) {
   }
 }
 
-// --- Marketplace Analytics Reverse Proxy Engine ---
-const MARKETPLACE_ANALYTICS_TARGET = 'https://holy-grail-staging.pages.dev';
-const ADMIN_SLUG_MARKETPLACE = 'default';
-
-// Static asset extensions to bypass auth
-const STATIC_ASSET_PATTERNS = [
-  '/assets/', '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff2', '.woff', '.ttf', '.eot', '.webp', '.avif'
-];
-
-function isStaticAsset(pathname) {
-  if (!pathname) return false;
-  const lower = pathname.toLowerCase();
-  return STATIC_ASSET_PATTERNS.some(pattern => 
-    pattern.startsWith('/') ? lower.includes(pattern) : lower.endsWith(pattern)
-  );
+// =============================================================================
+// HOLY GRAIL ENGINE v2.2 - Local API Handler
+// Query curated products from D1 database (HOLY_DB binding)
+// =============================================================================
+async function handleGetCuratedProducts(request, env) {
+  const url = new URL(request.url);
+  const platform = url.searchParams.get('platform') || 'shopee';
+  const category = url.searchParams.get('category') || 'skincare';
+  
+  try {
+    const { results } = await env.HOLY_DB.prepare(
+      `SELECT * FROM holy_grail_curated WHERE platform = ? AND category = ? ORDER BY rank_number ASC`
+    ).bind(platform, category).all();
+    
+    const formatted = (results || []).map(item => ({
+      ...item,
+      badges: typeof item.badges === 'string' ? JSON.parse(item.badges) : (item.badges || [])
+    }));
+    
+    return jsonResponse({ 
+      source: "holy-grail-engine-v2.2", 
+      status: "success", 
+      count: formatted.length, 
+      products: formatted 
+    }, 200, request);
+  } catch (err) {
+    return jsonResponse({ 
+      source: "holy-grail-engine-v2.2", 
+      status: "error", 
+      message: err.message, 
+      products: [] 
+    }, 500, request);
+  }
 }
+
+// =============================================================================
+// MARKETPLACE ANALYTICS SECURITY GATE
+// Lightweight protection - redirect to admin if no session
+// =============================================================================
+const ADMIN_SLUG_MARKETPLACE = 'default';
 
 function verifyAdminSession(request) {
   const cookieHeader = request.headers.get('Cookie') || '';
@@ -1817,108 +1841,7 @@ function redirectToAuthRequired(request) {
   return Response.redirect(redirectUrl, 302);
 }
 
-async function handleMarketplaceAnalytics(request, env, ctx) {
-  const url = new URL(request.url);
-  const pathname = url.pathname;
-  
-  // Static asset bypass
-  if (isStaticAsset(pathname)) {
-    const targetPath = pathname.replace('/marketplace-analytics', '') || '/';
-    const targetUrl = MARKETPLACE_ANALYTICS_TARGET + targetPath + url.search;
-    
-    const headers = new Headers();
-    request.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'host') {
-        headers.set(key, value);
-      }
-    });
-    headers.set('Host', 'holy-grail-staging.pages.dev');
-    headers.set('X-Forwarded-Host', url.hostname);
-    headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
-    
-    try {
-      const response = await fetch(targetUrl, {
-        method: request.method,
-        headers: headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined
-      });
-      
-      const responseHeaders = new Headers();
-      response.headers.forEach((value, key) => {
-        if (key.toLowerCase() === 'location') {
-          if (value.includes('holy-grail-staging.pages.dev')) {
-            value = value.replace('https://holy-grail-staging.pages.dev', 'https://customlink.id/marketplace-analytics');
-          }
-        }
-        responseHeaders.set(key, value);
-      });
-      
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders
-      });
-    } catch (err) {
-      console.error('Marketplace proxy static error:', err);
-      return new Response('Proxy error', { status: 502 });
-    }
-  }
-  
-  // Security gate for non-static requests - HARUS ada cookie/token login admin
-  if (!verifyAdminSession(request)) {
-    return redirectToAuthRequired(request);
-  }
-  
-  // Reverse proxy: map path
-  let targetPath = pathname.replace('/marketplace-analytics', '') || '/';
-  const targetUrl = MARKETPLACE_ANALYTICS_TARGET + targetPath + url.search;
-  
-  const headers = new Headers();
-  request.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== 'host') {
-      headers.set(key, value);
-    }
-  });
-  headers.set('Host', 'holy-grail-staging.pages.dev');
-  headers.set('X-Forwarded-Host', url.hostname);
-  headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
-  headers.set('X-Real-IP', request.headers.get('CF-Connecting-IP') || '');
-  
-  try {
-    const response = await fetch(targetUrl, {
-      method: request.method,
-      headers: headers,
-      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      redirect: 'manual'
-    });
-    
-    const responseHeaders = new Headers();
-    response.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'location') {
-        if (value.includes('holy-grail-staging.pages.dev')) {
-          value = value.replace('https://holy-grail-staging.pages.dev', 'https://customlink.id/marketplace-analytics');
-        }
-      }
-      responseHeaders.set(key, value);
-    });
-    
-    if (response.status >= 300 && response.status < 400) {
-      const location = responseHeaders.get('location');
-      if (location) {
-        return Response.redirect(location, response.status);
-      }
-    }
-    
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders
-    });
-  } catch (err) {
-    console.error('Marketplace proxy error:', err);
-    return new Response('Proxy error', { status: 502 });
-  }
-}
+
 
 
 // --- Router Utama ---
@@ -1934,8 +1857,24 @@ export default {
     // Placed BEFORE slug parser to prevent 'marketplace-analytics' being treated as store slug
     // ============================================================
     const isMarketplaceAsset = url.pathname.startsWith('/assets/') && (request.headers.get('Referer') || '').includes('/marketplace-analytics');
-    if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/") || isMarketplaceAsset) {
-      return handleMarketplaceAnalytics(request, env, ctx);
+    // Marketplace Analytics: serve local static files with security gate
+    if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/")) {
+      if (!verifyAdminSession(request)) {
+        return redirectToAuthRequired(request);
+      }
+      // Let Cloudflare Pages handle the static files
+      return env.ASSETS ? new Response(null, { status: 404 }) : handlePageRender(request, env, ctx);
+    }
+    // Assets under /marketplace-analytics/assets/ are served via /assets/ route
+    if (url.pathname.startsWith("/assets/") && (request.headers.get('Referer') || '').includes('/marketplace-analytics')) {
+      if (!verifyAdminSession(request)) {
+        return redirectToAuthRequired(request);
+      }
+    }
+    
+    // Holy Grail API endpoints - Curated Products from D1
+    if ((url.pathname === "/api/holy-grail" || url.pathname === "/api/products") && request.method === "GET") {
+      return handleGetCuratedProducts(request, env);
     }
 
     if (url.pathname === "/api/scrape-product" && request.method === "POST") return handleScrapeProduct(request);
