@@ -1864,12 +1864,9 @@ async function handleMarketplaceAnalytics(request, env, ctx) {
     }
   }
   
-  // Security gate for non-static requests
+  // Security gate for non-static requests - HARUS ada cookie/token login admin
   if (!verifyAdminSession(request)) {
-    const slugParam = url.searchParams.get('slug');
-    if (slugParam !== ADMIN_SLUG_MARKETPLACE) {
-      return redirectToAuthRequired(request);
-    }
+    return redirectToAuthRequired(request);
   }
   
   // Reverse proxy: map path
@@ -1906,7 +1903,7 @@ async function handleMarketplaceAnalytics(request, env, ctx) {
     });
     
     if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
+      const location = responseHeaders.get('location');
       if (location) {
         return Response.redirect(location, response.status);
       }
@@ -1936,7 +1933,8 @@ export default {
     // MARKETPLACE ANALYTICS ROUTE - Highest Priority (Bypass Slug Check)
     // Placed BEFORE slug parser to prevent 'marketplace-analytics' being treated as store slug
     // ============================================================
-    if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/")) {
+    const isMarketplaceAsset = url.pathname.startsWith('/assets/') && (request.headers.get('Referer') || '').includes('/marketplace-analytics');
+    if (url.pathname === "/marketplace-analytics" || url.pathname.startsWith("/marketplace-analytics/") || isMarketplaceAsset) {
       return handleMarketplaceAnalytics(request, env, ctx);
     }
 
