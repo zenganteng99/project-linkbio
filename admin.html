@@ -2013,4 +2013,18 @@ async function handleSave() {
 
             const session = sessionStorage.getItem("admin_session");
             if (session) {
-                const { slug, pin, authenticated } = JSON.parse(session);
+                try {
+                    const { slug, pin, authenticated } = JSON.parse(session);
+                    if (authenticated && slug && pin) {
+                        document.getElementById("login-slug").value = slug;
+                        document.getElementById("login-pin").value = pin;
+                        handleLogin();
+                    }
+                } catch (e) {
+                    sessionStorage.removeItem("admin_session");
+                }
+            }
+        });
+    </script>
+</body>
+</html>
