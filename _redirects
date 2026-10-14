@@ -1,0 +1,2 @@
+# SPA Fallback for marketplace-analytics SPA routes
+/marketplace-analytics/*  /marketplace-analytics/index.html  200
