@@ -14,6 +14,31 @@
     <link rel="stylesheet" crossorigin href="/marketplace-analytics/assets/index-pkYhUrrg.css">
   </head>
   <body>
+    <a href="/admin.html" id="back-to-admin-btn" style="
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #94a3b8;
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+" onmouseover="this.style.color='#f59e0b';this.style.borderColor='#f59e0b';this.style.transform='translateY(-1px)'" 
+   onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(51, 65, 85, 0.8)';this.style.transform='translateY(0)'">
+  <span style="font-size: 15px;">←</span> Kembali ke Admin
+</a>
     <div id="root"></div>
   </body>
 </html>
