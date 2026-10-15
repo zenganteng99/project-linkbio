@@ -483,8 +483,8 @@
                 const num = p._itemNumber;
                 
                 const badge = num <= 3 
-                    ? `<div class="absolute -top-2.5 -left-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg z-10 tracking-wider">TOP #${num}</div>`
-                    : `<div class="absolute -top-2.5 -left-2.5 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-10 border border-white/30 tracking-wider">#${num}</div>`;
+                    ? `<div class="absolute -top-2 -left-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-lg z-20 tracking-wider">TOP #${num}</div>`
+                    : `<div class="absolute -top-2 -left-2 bg-gray-900/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md z-20 border border-white/30 tracking-wider">#${num}</div>`;
                 
                 const imgHtml = p.image_url 
                     ? `<img src="${getImageUrlWithCacheBust(p.image_url)}" alt="${p.title || 'Produk'}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300" style="aspect-ratio: 1/1;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="w-16 h-16 bg-gray-100 rounded-xl hidden items-center justify-center text-2xl shadow-inner" style="aspect-ratio: 1/1;">🛍️</div>`
@@ -497,7 +497,10 @@
                 return `<div class="product-glass rounded-2xl p-3.5 shadow-xl relative overflow-hidden group">
                     <a href="${p.affiliate_link || '#'}" target="_blank" class="block" data-track-product="${productIdentifier}" data-product-title="${safeTitle}" data-product-price="${rawPrice}">
                         <div class="flex gap-4 items-center">
-                            <div class="img-fixed-box">${imgHtml}${badge}</div>
+                            <div class="relative flex-shrink-0">
+                                <div class="img-fixed-box">${imgHtml}</div>
+                                ${badge}
+                            </div>
                             <div class="flex-1 min-w-0 pr-1">
                                 <h3 class="font-bold text-gray-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-pink-600 transition-colors">${p.title || ''}</h3>
                                 <p class="text-pink-600 font-extrabold text-sm sm:text-base mt-0.5">${fmt(p.price)}</p>
