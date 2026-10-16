@@ -233,10 +233,9 @@
     </main>
 
     <script>
-        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
-            ? window.location.origin 
-            : "https://customlink-webhook.modernshopp.workers.dev";
-            
+        // Gunakan window.location.origin - Workers Routes handle /api/* di domain utama
+        const WORKER_ORIGIN = window.location.origin;
+        
         const TRACK_ENDPOINT = `${WORKER_ORIGIN}/api/track`;
         const STORE_ENDPOINT = `${WORKER_ORIGIN}/api/public/store`;
 
@@ -579,8 +578,10 @@
         let currentCacheTimestamp = 0;
         function getImageUrlWithCacheBust(imageUrl) {
             if (!imageUrl) return "";
-            const separator = imageUrl.includes("?") ? "&" : "?";
-            return imageUrl + separator + "_cb=" + currentCacheTimestamp;
+            // Normalisasi domain CDN agar tidak timeout ke workers.dev/pages.dev
+            let cleanUrl = imageUrl.replace(/https:\/\/[^/]+\/cdn\//, "https://customlink.id/cdn/");
+            const separator = cleanUrl.includes("?") ? "&" : "?";
+            return cleanUrl + separator + "_cb=" + currentCacheTimestamp;
         }
 
         async function loadAndRender(slug, cacheKey) {

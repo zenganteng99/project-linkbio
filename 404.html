@@ -233,10 +233,9 @@
     </main>
 
     <script>
-        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
-            ? window.location.origin 
-            : "https://customlink-webhook.modernshopp.workers.dev";
-            
+        // Gunakan window.location.origin - Workers Routes handle /api/* di domain utama
+        const WORKER_ORIGIN = window.location.origin;
+        
         const TRACK_ENDPOINT = `${WORKER_ORIGIN}/api/track`;
         const STORE_ENDPOINT = `${WORKER_ORIGIN}/api/public/store`;
 

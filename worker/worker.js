@@ -60,7 +60,7 @@ async function handleUploadImage(request, env) {
       httpMetadata: { contentType: file.type || "image/jpeg" }
     });
     
-    const primaryDomain = env.PRIMARY_DOMAIN || "https://customlink.pages.dev";
+    const primaryDomain = "https://customlink.id"; // Selalu gunakan domain utama
     const publicUrl = primaryDomain + '/cdn/' + filename;
     
     return jsonResponse({ success: true, url: publicUrl, filename: filename });
