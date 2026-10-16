@@ -596,7 +596,7 @@ async function handleGapuraWebhook(request, env) {
     }).catch(() => {});
 
     // ============================================
-    // COMMISSION CALCULATOR
+    // COMMISSION CALCULATOR - Fixed Logic
     // ============================================
     const voucherCode = addInfo.voucher_code || addInfo.voucher || "";
     const brokerSlug = addInfo.broker_slug || addInfo.referred_by || "";
@@ -611,34 +611,43 @@ async function handleGapuraWebhook(request, env) {
         created_at: new Date().toISOString()
       };
       
-      // Check if voucher belongs to an influencer
-      const infRes = await fetch(SUPABASE_URL + '/rest/v1/endorse_vouchers?voucher_code=eq.' + voucherCode + '&select=id,is_used', {
+      // KASUS A: Cek apakah voucher ini milik influencer/sub-influencer di tabel `influencers`
+      const infRes = await fetch(`${SUPABASE_URL}/rest/v1/influencers?voucher_code=ilike.${encodeURIComponent(voucherCode)}&select=id,client_slug,commission_rate,referred_by`, {
         headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
       });
       const infData = await infRes?.json();
       
       if (infData && infData.length > 0) {
-        // Influencer sale - 30%
-        commissionRecord.voucher_code = voucherCode;
-        commissionRecord.commission_amount = Math.round(amountVal * 0.30);
-      } else if (brokerSlug) {
-        // Check if sub-influencer sale (has referred_by)
-        const subInfRes = await fetch(SUPABASE_URL + '/rest/v1/influencers?voucher_code=eq.' + voucherCode + '&select=id,referred_by', {
-          headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
-        });
-        const subInfData = await subInfRes?.json();
+        const inf = infData[0];
         
-        if (subInfData && subInfData.length > 0 && subInfData[0].referred_by) {
-          // Sub-influencer sale - 20% for sub-inf, 10% passive for broker
+        if (inf.referred_by) {
+          // KASUS A1: Sub-Influencer (Hasil rekrutan broker)
+          // Sub-Influencer dapat 20%, Broker yang merekrut dapat komisi pasif 10%
           commissionRecord.voucher_code = voucherCode;
-          commissionRecord.broker_slug = subInfData[0].referred_by;
+          commissionRecord.client_slug = inf.client_slug || clientSlug;
           commissionRecord.sub_influencer_commission = Math.round(amountVal * 0.20);
+          commissionRecord.broker_slug = inf.referred_by;
           commissionRecord.broker_commission_amount = Math.round(amountVal * 0.10);
         } else {
-          // Broker direct sale - 30%
+          // KASUS A2: Influencer Murni (Non-broker)
+          // Mendapatkan hak komisi penuh (30%)
+          const rate = (inf.commission_rate || 30) / 100;
           commissionRecord.voucher_code = voucherCode;
-          commissionRecord.broker_slug = brokerSlug;
-          commissionRecord.broker_commission_amount = Math.round(amountVal * 0.30);
+          commissionRecord.client_slug = inf.client_slug || clientSlug;
+          commissionRecord.commission_amount = Math.round(amountVal * rate);
+        }
+      } else {
+        // KASUS B: Cek apakah voucher ini adalah kode direct selling milik Master Broker di tabel `brokers`
+        const brkRes = await fetch(`${SUPABASE_URL}/rest/v1/brokers?or=(broker_code.ilike.${encodeURIComponent(voucherCode)},direct_voucher_code.ilike.${encodeURIComponent(voucherCode)})&select=id,slug`, {
+          headers: { "apikey": serviceKey, "Authorization": "Bearer " + serviceKey }
+        });
+        const brkData = await brkRes?.json();
+        
+        if (brkData && brkData.length > 0) {
+          // KASUS B: Broker direct selling - 30%
+          commissionRecord.voucher_code = voucherCode;
+          commissionRecord.broker_slug = brkData[0].slug;
+          commissionRecord.broker_commission_amount = Math.round(amountVal * 0.30); // Direct selling 30%
         }
       }
       

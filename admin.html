@@ -638,33 +638,57 @@
             </div>
 
             <!-- Section Khusus Broker -->
-            <div id="broker-section" class="bg-white rounded-2xl shadow-lg p-6 hidden">
-                <div class="flex items-center gap-3 mb-6">
+            <div id="broker-section" class="bg-white rounded-2xl shadow-lg p-6 hidden space-y-6">
+                <div class="flex items-center gap-3 border-b border-gray-100 pb-4">
                     <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
                         <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-800">Master Broker Panel</h2>
-                        <p class="text-gray-500 text-xs">Kelola sub-affiliate dan pantau komisi pasif (10%)</p>
+                        <p class="text-gray-500 text-xs">Kelola voucher rekrutmen tim dan voucher jualan langsung Anda</p>
                     </div>
                 </div>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Kode Rekrutmen Anda</label>
-                        <input type="text" id="broker_code_display" readonly class="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 outline-none uppercase font-bold text-indigo-600">
-                        <p class="text-xs text-gray-500 mt-1">Berikan kode ini kepada influencer baru agar mereka bisa mendaftar gratis.</p>
+
+                <!-- KARTU 1: VOUCHER REKRUTMEN INFLUENCER -->
+                <div class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">1. Kode Rekrutmen Influencer (Tiket 100% Gratis)</span>
+                        <span class="text-[10px] bg-indigo-100 text-indigo-800 font-extrabold px-2 py-0.5 rounded-full">Komisi Pasif 10%</span>
                     </div>
-                    <div class="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-4 border border-indigo-100 mt-4">
-                        <h3 class="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-3">Statistik Jaringan Broker</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-white p-3 rounded-lg shadow-sm">
-                                <p class="text-xs text-gray-500">Influencer Direkrut</p>
-                                <p id="stat_broker_influencers" class="text-lg font-bold text-gray-800">0 Akun</p>
-                            </div>
-                            <div class="bg-white p-3 rounded-lg shadow-sm">
-                                <p class="text-xs text-gray-500">Total Komisi Pasif</p>
-                                <p id="stat_broker_commission" class="text-lg font-bold text-green-600">Rp 0</p>
-                            </div>
+                    <div>
+                        <input type="text" id="broker_code_display" readonly class="w-full px-4 py-3 border border-indigo-200 rounded-xl bg-white outline-none uppercase font-bold text-indigo-600 text-base">
+                        <p class="text-xs text-gray-500 mt-1">Berikan kode ini kepada calon influencer agar mereka bisa membuat bio link gratis. Anda otomatis mendapatkan <strong class="text-indigo-600">komisi pasif 10%</strong> dari setiap penjualan mereka.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100">
+                            <p class="text-xs text-gray-500">Influencer Direkrut</p>
+                            <p id="stat_broker_influencers" class="text-lg font-bold text-gray-800">0 Akun</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100">
+                            <p class="text-xs text-gray-500">Total Komisi Pasif (10%)</p>
+                            <p id="stat_broker_commission" class="text-lg font-bold text-green-600">Rp 0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KARTU 2: VOUCHER DIRECT SELLING BROKER -->
+                <div class="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">2. Voucher Jualan Pribadi (Direct Selling)</span>
+                        <span class="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full">Komisi Langsung 30%</span>
+                    </div>
+                    <div>
+                        <input type="text" id="broker_direct_voucher" placeholder="Contoh: HABIB30" class="w-full px-4 py-3 border border-emerald-200 rounded-xl bg-white outline-none uppercase font-bold text-emerald-600 text-base">
+                        <p class="text-xs text-gray-500 mt-1">Gunakan kode ini jika Anda berjualan langsung ke audiens/pembeli. Diskon pembeli: <strong class="text-gray-700">30%</strong> | Komisi langsung Anda: <strong class="text-emerald-600">30%</strong>.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-emerald-100">
+                            <p class="text-xs text-gray-500">Unit Terjual Langsung</p>
+                            <p id="stat_broker_direct_sales" class="text-lg font-bold text-gray-800">0 Unit</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-emerald-100">
+                            <p class="text-xs text-gray-500">Komisi Direct (30%)</p>
+                            <p id="stat_broker_direct_commission" class="text-lg font-bold text-green-600">Rp 0</p>
                         </div>
                     </div>
                 </div>
@@ -1674,13 +1698,31 @@ function createProductCard(product, index) {
 
         async function loadBrokerStats(bSlug) {
             try {
+                // Hitung influencer yang direkrut (referred_by = bSlug)
                 const { count } = await sbClient.from("influencers").select("*", { count: 'exact', head: true }).eq("referred_by", bSlug);
                 document.getElementById("stat_broker_influencers").textContent = (count || 0) + " Akun";
-                const { data } = await sbClient.from("transactions").select("broker_commission_amount").eq("broker_slug", bSlug);
-                let tComm = 0;
-                if(data) data.forEach(tx => tComm += (Number(tx.broker_commission_amount) || 0));
-                document.getElementById("stat_broker_commission").textContent = "Rp " + tComm.toLocaleString("id-ID");
-            } catch (err) {}
+                
+                // Hitung total komisi pasif dari broker_commission_amount
+                const { data: passData } = await sbClient.from("transactions").select("broker_commission_amount").eq("broker_slug", bSlug);
+                let passiveComm = 0;
+                if(passData) passData.forEach(tx => passiveComm += (Number(tx.broker_commission_amount) || 0));
+                document.getElementById("stat_broker_commission").textContent = "Rp " + passiveComm.toLocaleString("id-ID");
+                
+                // Hitung unit terjual langsung dari direct_voucher_code
+                const directVoucher = document.getElementById("broker_direct_voucher")?.value?.trim() || "";
+                if (directVoucher) {
+                    const { count: directCount, data: directData } = await sbClient.from("transactions").select("broker_commission_amount", { count: 'exact' }).eq("voucher_code", directVoucher);
+                    document.getElementById("stat_broker_direct_sales").textContent = (directCount || 0) + " Unit";
+                    let directComm = 0;
+                    if(directData) directData.forEach(tx => directComm += (Number(tx.broker_commission_amount) || 0));
+                    document.getElementById("stat_broker_direct_commission").textContent = "Rp " + directComm.toLocaleString("id-ID");
+                } else {
+                    document.getElementById("stat_broker_direct_sales").textContent = "0 Unit";
+                    document.getElementById("stat_broker_direct_commission").textContent = "Rp 0";
+                }
+            } catch (err) {
+                console.error("loadBrokerStats error:", err);
+            }
         }
         
 
@@ -1751,9 +1793,23 @@ function populateForm() {
             renderProductCards();
             renderUpgradeSection();
 
+            const brokerSection = document.getElementById("broker-section");
             const infSection = document.getElementById("influencer-section");
-            if (influencerData) {
+            
+            if (brokerData) {
+                // Broker account: tampilkan broker-section, sembunyikan influencer-section
+                brokerSection.classList.remove("hidden");
+                infSection.classList.add("hidden");
+                
+                document.getElementById("broker_code_display").value = brokerData.broker_code || "";
+                document.getElementById("broker_direct_voucher").value = brokerData.direct_voucher_code || brokerData.voucher_code || "";
+                
+                loadBrokerStats(brokerData.slug);
+            } else if (influencerData) {
+                // Influencer account: tampilkan influencer-section, sembunyikan broker-section
                 infSection.classList.remove("hidden");
+                brokerSection.classList.add("hidden");
+                
                 const vInput = document.getElementById("influencer_voucher_code");
                 if(vInput) vInput.value = influencerData.voucher_code || "";
                 
@@ -1765,15 +1821,8 @@ function populateForm() {
                 
                 loadInfluencerStats(influencerData.voucher_code);
             } else {
+                // No affiliate role
                 infSection.classList.add("hidden");
-            }
-
-            const brokerSection = document.getElementById("broker-section");
-            if (brokerData) {
-                brokerSection.classList.remove("hidden");
-                document.getElementById("broker_code_display").value = brokerData.broker_code || "";
-                loadBrokerStats(brokerData.slug);
-            } else {
                 brokerSection?.classList.add("hidden");
             }
         }
@@ -1946,7 +1995,10 @@ async function handleSave() {
                 }
 
                 let voucherToUpdate = "";
-                if (influencerData) {
+                let brokerDirectVoucher = "";
+                if (brokerData) {
+                    brokerDirectVoucher = document.getElementById("broker_direct_voucher").value.trim().toUpperCase();
+                } else if (influencerData) {
                     voucherToUpdate = document.getElementById("influencer_voucher_code").value.trim().toUpperCase();
                 }
 
@@ -1956,7 +2008,8 @@ async function handleSave() {
                     p_new_password: newPin || "",
                     p_settings: settingsPayload,
                     p_products: productsPayload,
-                    p_influencer_voucher: voucherToUpdate
+                    p_influencer_voucher: voucherToUpdate,
+                    p_broker_direct_voucher: brokerDirectVoucher
                 });
 
                 if (saveError) throw saveError;
