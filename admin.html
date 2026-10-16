@@ -1017,6 +1017,16 @@
             }
         }
         
+        // Helper: Normalisasi URL CDN ke domain utama
+        function normalizeCdnUrl(url) {
+            if (!url) return "";
+            return url
+                .replace(/https:\/\/customlink-webhook\.modernshopp\.workers\.dev/, "https://customlink.id")
+                .replace(/https:\/\/customlink\.pages\.dev/, "https://customlink.id")
+                .replace(/https:\/\/[^/]+\.workers\.dev/, "https://customlink.id")
+                .replace(/https:\/\/[^/]+\.pages\.dev/, "https://customlink.id");
+        }
+        
         function extractPathFromUrl(url) {
             if (!url) return null;
             const match = url.match(/\/public-assets\/([^?]+)/);
@@ -1782,12 +1792,12 @@ function populateForm() {
 
             if (settingsData.profile_image_url) {
                 const p = document.getElementById("profile-preview");
-                p.style.backgroundImage = "url(" + settingsData.profile_image_url + ")";
+                p.style.backgroundImage = "url(" + normalizeCdnUrl(settingsData.profile_image_url) + ")";
                 p.innerHTML = "";
             }
             if (settingsData.background_url) {
                 const b = document.getElementById("bg-preview");
-                b.style.backgroundImage = "url(" + settingsData.background_url + ")";
+                b.style.backgroundImage = "url(" + normalizeCdnUrl(settingsData.background_url) + ")";
                 b.innerHTML = "";
             }
             renderProductCards();

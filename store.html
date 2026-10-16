@@ -579,7 +579,11 @@
         function getImageUrlWithCacheBust(imageUrl) {
             if (!imageUrl) return "";
             // Normalisasi domain CDN agar tidak timeout ke workers.dev/pages.dev
-            let cleanUrl = imageUrl.replace(/https:\/\/[^/]+\/cdn\//, "https://customlink.id/cdn/");
+            let cleanUrl = imageUrl
+                .replace(/https:\/\/customlink-webhook\.modernshopp\.workers\.dev/, "https://customlink.id")
+                .replace(/https:\/\/customlink\.pages\.dev/, "https://customlink.id")
+                .replace(/https:\/\/[^/]+\.workers\.dev/, "https://customlink.id")
+                .replace(/https:\/\/[^/]+\.pages\.dev/, "https://customlink.id");
             const separator = cleanUrl.includes("?") ? "&" : "?";
             return cleanUrl + separator + "_cb=" + currentCacheTimestamp;
         }
