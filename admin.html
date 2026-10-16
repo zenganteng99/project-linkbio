@@ -767,8 +767,8 @@
         const SB_URL = "https://aonbjbcytrpjaxuhyucq.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmJqYmN5dHJwamF4dWh5dWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDMxMTYsImV4cCI6MjEwNTcxOTExNn0.0ox4fRqRPM1VR9J9KSVZfGlc72BXsIcnmJKen4W5tE0";
         const SB_BUCKET = "public-assets";
-        // D1 database binding only exists in Cloudflare Worker, not in Pages
-        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
+        // Use window.location.origin - Cloudflare Workers routes handle /api/* on the main domain
+        const WORKER_ORIGIN = window.location.origin;
         
         const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
         
