@@ -133,6 +133,39 @@
         .animate-float { animation: float 5s ease-in-out infinite; }
         @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         .animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
+
+        /* ========================================================
+           PERBAIKAN OPSI B: FORMULIR PESANAN & MODAL INFLUENCER
+           Memaksa background putih dengan teks hitam pekat (#0f172a)
+           ======================================================== */
+        #checkoutModal input[type="text"],
+        #checkoutModal input[type="tel"],
+        #checkoutModal input[type="email"],
+        #influencerModal input[type="text"] {
+            background-color: #ffffff !important;
+            color: #0f172a !important; /* Hitam Slate-900 */
+            border-color: #cbd5e1 !important;
+            caret-color: #7c3aed !important;
+        }
+
+        /* Placeholder abu-abu jelas */
+        #checkoutModal input::placeholder,
+        #influencerModal input::placeholder {
+            color: #94a3b8 !important; /* Gray-400 */
+            opacity: 1 !important;
+        }
+
+        /* Anti-bug Autofill Browser: Mencegah browser mewarnai font jadi putih */
+        #checkoutModal input:-webkit-autofill,
+        #checkoutModal input:-webkit-autofill:hover,
+        #checkoutModal input:-webkit-autofill:focus,
+        #influencerModal input:-webkit-autofill,
+        #influencerModal input:-webkit-autofill:hover,
+        #influencerModal input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #0f172a !important;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
     </style>
 </head>
 <body class="bg-obsidian-900 min-h-screen selection:bg-purple-500 selection:text-white pb-24">
@@ -534,24 +567,24 @@
             <form onsubmit="processFinalCheckout(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Nama Lengkap</label>
-                    <input type="text" id="modalBuyerName" required placeholder="Contoh: Rian Pratama" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="modalBuyerName" required placeholder="Contoh: Rian Pratama" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
-                    <input type="tel" id="modalBuyerPhone" required placeholder="Contoh: 081234567890" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="tel" id="modalBuyerPhone" required placeholder="Contoh: 081234567890" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Alamat Email (Untuk Kirim Akses Toko)</label>
-                    <input type="email" id="modalBuyerEmail" placeholder="Contoh: rian@gmail.com" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="email" id="modalBuyerEmail" placeholder="Contoh: rian@gmail.com" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
 
                 <!-- Voucher Input Section -->
                 <div>
                     <label class="block text-xs font-semibold uppercase text-gray-300 mb-1">Kode Endorse / Kode Broker</label>
                     <div class="flex gap-2">
-                        <input type="text" id="couponInput" placeholder="Masukkan kode voucher" class="flex-1 bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-amber-400 font-bold uppercase focus:outline-none focus:border-purple-500">
+                        <input type="text" id="couponInput" placeholder="Masukkan kode voucher" class="flex-1 bg-white text-gray-900 placeholder-gray-400 font-bold uppercase border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                         <button type="button" onclick="applyCoupon()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-3 rounded-xl text-xs transition">
                             Terapkan
                         </button>
@@ -593,29 +626,29 @@
             <div class="space-y-4 text-left">
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Client Slug (Nama Unik Toko/Admin)</label>
-                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '')" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
-                    <p class="text-[10px] text-gray-500 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
+                    <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '')" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
+                    <p class="text-[10px] text-gray-400 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Kode Voucher Publik Anda</label>
-                    <input type="text" id="inf_voucher" placeholder="contoh: TASYA30" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm uppercase font-bold text-pink-400 focus:outline-none focus:border-purple-500">
-                    <p class="text-[10px] text-gray-500 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
+                    <input type="text" id="inf_voucher" placeholder="contoh: TASYA30" class="w-full bg-white text-gray-900 placeholder-gray-400 font-bold uppercase border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
+                    <p class="text-[10px] text-gray-400 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
-                    <input type="text" id="inf_whatsapp" placeholder="08xxxxxxxxxx" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="inf_whatsapp" placeholder="08xxxxxxxxxx" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Nama Bank / E-Wallet</label>
-                    <input type="text" id="inf_bank_name" placeholder="BCA / DANA / Mandiri" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="inf_bank_name" placeholder="BCA / DANA / Mandiri" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Nomor Rekening</label>
-                    <input type="text" id="inf_bank_account" placeholder="1234567890" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="inf_bank_account" placeholder="1234567890" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Nama Pemilik Rekening</label>
-                    <input type="text" id="inf_bank_holder" placeholder="Sesuai buku tabungan" class="w-full bg-obsidian-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="inf_bank_holder" placeholder="Sesuai buku tabungan" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
                 </div>
                 <button onclick="submitInfluencerData()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white py-4 rounded-xl font-bold text-sm shadow-xl transition-all mt-2">Simpan & Aktifkan Panel Admin 🚀</button>
             </div>
