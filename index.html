@@ -135,27 +135,25 @@
         .animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
 
         /* ========================================================
-           PERBAIKAN OPSI B: FORMULIR PESANAN & MODAL INFLUENCER
-           Memaksa background putih dengan teks hitam pekat (#0f172a)
+           KUNCI WARNA INPUT: OPS B (Latar Putih, Font Hitam Pekat)
+           Mengatasi teks putih saat diketik pada modal order & influencer
            ======================================================== */
-        #checkoutModal input[type="text"],
-        #checkoutModal input[type="tel"],
-        #checkoutModal input[type="email"],
-        #influencerModal input[type="text"] {
+        #checkoutModal input,
+        #influencerModal input {
             background-color: #ffffff !important;
-            color: #0f172a !important; /* Hitam Slate-900 */
+            color: #0f172a !important; /* Hitam pekat Slate 900 */
+            -webkit-text-fill-color: #0f172a !important;
             border-color: #cbd5e1 !important;
             caret-color: #7c3aed !important;
         }
 
-        /* Placeholder abu-abu jelas */
         #checkoutModal input::placeholder,
         #influencerModal input::placeholder {
-            color: #94a3b8 !important; /* Gray-400 */
+            color: #94a3b8 !important; /* Gray 400 */
+            -webkit-text-fill-color: #94a3b8 !important;
             opacity: 1 !important;
         }
 
-        /* Anti-bug Autofill Browser: Mencegah browser mewarnai font jadi putih */
         #checkoutModal input:-webkit-autofill,
         #checkoutModal input:-webkit-autofill:hover,
         #checkoutModal input:-webkit-autofill:focus,
@@ -525,7 +523,7 @@
                         <h3 class="font-bold text-lg mb-2 text-white">Bagaimana fitur "Nomor Etalase" dan "Pencarian" membantu live saya?</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Setiap produk di etalase Anda otomatis memiliki nomor urut (#1, #2, dst). Saat live streaming di TikTok atau IG, Anda cukup sebutkan nomor barangnya. Penonton yang membuka bio link hanya perlu mengetik angka tersebut di kotak pencarian untuk langsung menemukan produk yang sedang di-spill dalam 1 detik.</p>
                     </div>
-                    <div class="glass-card p-6 rounded-2xl border border-gray-800">
+                    <div class="glass-card p-8 rounded-2xl border border-gray-800">
                         <h3 class="font-bold text-lg mb-2 text-white">Bagaimana cara kerja fitur Auto-Scraper produk?</h3>
                         <p class="text-gray-400 text-sm leading-relaxed">Di panel admin HP Anda, cukup salin tautan produk dari Shopee, TikTok Shop, atau Tokopedia lalu klik "⚡ Ambil Info Otomatis". Server kami akan secara otomatis mengekstrak judul resmi, format harga Rupiah, dan foto produk resolusi tinggi tanpa Anda harus mendownload gambar manual.</p>
                     </div>
@@ -627,12 +625,12 @@
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Client Slug (Nama Unik Toko/Admin)</label>
                     <input type="text" id="inf_slug" placeholder="contoh: tasyafarasya" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '')" class="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
-                    <p class="text-[10px] text-gray-400 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
+                    <p class="text-[10px] text-gray-500 mt-0.5">Digunakan saat login di admin.html (tanpa spasi)</p>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Kode Voucher Publik Anda</label>
                     <input type="text" id="inf_voucher" placeholder="contoh: TASYA30" class="w-full bg-white text-gray-900 placeholder-gray-400 font-bold uppercase border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500">
-                    <p class="text-[10px] text-gray-400 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
+                    <p class="text-[10px] text-gray-500 mt-0.5">Kode ini yang akan dibagikan ke audiens Anda (Diskon 30%)</p>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-300 mb-1">Nomor WhatsApp Aktif</label>
@@ -671,9 +669,8 @@
     <script>
         AOS.init({ once: true, offset: 80, duration: 800 });
 
-        const WORKER_ORIGIN = window.location.hostname.includes("customlink.id") 
-            ? window.location.origin 
-            : "https://customlink-webhook.modernshopp.workers.dev";
+        // Arahkan langsung ke Cloudflare Worker API origin untuk mencegah Error 405 dari static Pages
+        const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
 
         let currentBasePrice = 0;
         let appliedDiscountPercent = 0;
