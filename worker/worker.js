@@ -1858,6 +1858,12 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    // Redirect www. to non-www for consistent routing
+    if (url.hostname === "www.customlink.id") {
+      url.hostname = "customlink.id";
+      return Response.redirect(url.href, 301);
+    }
+
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: getCorsHeaders(request) });
     if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 });
 
