@@ -773,8 +773,12 @@
                     } else if (result.type === 'broker') {
                         appliedDiscountPercent = 100;
                         isEndorseSuccess = true;
-                        discountAmount = Math.floor(currentBasePrice * (appliedDiscountPercent / 100));
-                        document.getElementById('couponFeedback').innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Kode Broker Valid! Akses Sub-Affiliate Terbuka.`;
+                        activeEndorseCode = result.code || code; // WAJIB DIISI AGAR TIDAK KOSONG SAAT SUBMIT
+                        const feedback = document.getElementById('couponFeedback');
+                        feedback.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> Kode Broker Valid! Akses Sub-Affiliate Terbuka.`;
+                        feedback.className = 'text-[11px] mt-1 text-green-400 font-semibold';
+                        document.getElementById('discountLabel').innerText = 'Akses Broker:';
+                        document.getElementById('discountRow').classList.remove('hidden');
                     }
                 } else {
                     appliedDiscountPercent = 0;
@@ -878,7 +882,10 @@
             const bankHolder = document.getElementById('inf_bank_holder').value.trim();
             const packageName = document.getElementById('modalTierTitle').innerText.trim() || 'Pro Package';
 
-            if (!slug || !voucher || !whatsapp || !bankName || !bankAcc || !bankHolder) {
+            // Fallback: jika activeEndorseCode kosong, ambil dari couponInput
+            const finalEndorseCode = (activeEndorseCode || document.getElementById('couponInput').value.trim().toLowerCase());
+
+            if (!slug || !voucher || !whatsapp || !bankName || !bankAcc || !bankHolder || !finalEndorseCode) {
                 alert('Mohon lengkapi semua kolom form!');
                 return;
             }
@@ -894,19 +901,19 @@
                         bankName: bankName,
                         bankAccount: bankAcc,
                         bankHolder: bankHolder,
-                        endorseCode: activeEndorseCode,
+                        endorseCode: finalEndorseCode,
                         package: packageName
                     })
                 });
 
                 const result = await response.json();
 
-                if (result.success === true) {
+                if (response.ok && result.success === true) {
                     alert('🎉 Aktivasi Berhasil! Panel Admin Anda sudah siap digunakan.');
                     document.getElementById('influencerModal').classList.add('hidden');
                     window.location.href = `/admin?slug=${slug}&new=1`;
                 } else {
-                    alert('Gagal aktivasi: ' + (result.message || 'Silakan coba lagi.'));
+                    alert('Gagal aktivasi: ' + (result.message || 'Data tidak valid atau slug sudah digunakan.'));
                 }
             } catch (err) {
                 console.error(err);
