@@ -672,6 +672,26 @@
         // Arahkan langsung ke Cloudflare Worker API origin untuk mencegah Error 405 dari static Pages
         const WORKER_ORIGIN = "https://customlink-webhook.modernshopp.workers.dev";
 
+        // Helper fetch cerdas: mencoba origin utama, jika 405 atau timeout 8s langsung beralih ke fallback worker
+        async function fetchAPI(endpoint, options = {}) {
+            const primary = `${window.location.origin}${endpoint}`;
+            const fallback = `${WORKER_ORIGIN}${endpoint}`;
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 detik timeout
+
+            try {
+                const res = await fetch(primary, { ...options, signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (res.status === 405) throw new Error("Method 405 on primary");
+                return res;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                console.log("Primary endpoint failed, switching to fallback:", endpoint);
+                return fetch(fallback, options);
+            }
+        }
+
         let currentBasePrice = 0;
         let appliedDiscountPercent = 0;
         let isEndorseSuccess = false;
@@ -725,7 +745,7 @@
             feedback.className = 'text-[11px] mt-1 text-yellow-400';
 
             try {
-                const response = await fetch(`${WORKER_ORIGIN}/api/check-voucher`, {
+                const response = await fetchAPI('/api/check-voucher', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code: code })
@@ -793,7 +813,6 @@
         }
 
         // --- PROSES CHECKOUT & POPUP INFLUENCER ---
-        const PAYMENT_ENDPOINT = `${WORKER_ORIGIN}/api/create-payment`;
 
         async function processFinalCheckout(event) {
             if (event) event.preventDefault();
@@ -822,7 +841,7 @@
             modalPayButton.innerText = 'Memproses pembayaran...';
 
             try {
-                const response = await fetch(PAYMENT_ENDPOINT, {
+                const response = await fetchAPI('/api/create-payment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ buyerName, buyerPhone, buyerEmail: document.getElementById('modalBuyerEmail').value.trim(), packageName, amount })
@@ -865,7 +884,7 @@
             }
 
             try {
-                const response = await fetch(`${WORKER_ORIGIN}/api/register-influencer`, {
+                const response = await fetchAPI('/api/register-influencer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
